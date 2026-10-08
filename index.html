@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#b8322a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="鍋物庫存">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>鍋物庫存</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar + scrolling tab strip; each tab is a stacked column of panels, tables scroll in their own box */
+:root{
+  --bg:#eef1ee; --surface:#ffffff; --surface-2:#f5f7f5; --line:#d6ddd8; --fg:#1d2621; --muted:#5d6b63;
+  --accent:#b8322a; --accent-ink:#ffffff; --accent-soft:#f6e3e0;
+  --good:#2f7a4f; --good-soft:#e1f0e6; --warn:#a86a0c; --warn-soft:#f8ecd6; --bad:#b8322a; --bad-soft:#f6e3e0;
+  --display:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a17; --surface:#1c2420; --surface-2:#222b26; --line:#33403a; --fg:#e6ece8; --muted:#9aa9a1;
+  --accent:#e7675c; --accent-ink:#1a0d0b; --accent-soft:#3a201d;
+  --good:#6cc590; --good-soft:#1d3427; --warn:#e4ab4d; --warn-soft:#3a2d16; --bad:#ef7a70; --bad-soft:#3d1f1c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a17; --surface:#1c2420; --surface-2:#222b26; --line:#33403a; --fg:#e6ece8; --muted:#9aa9a1;
+  --accent:#e7675c; --accent-ink:#1a0d0b; --accent-soft:#3a201d;
+  --good:#6cc590; --good-soft:#1d3427; --warn:#e4ab4d; --warn-soft:#3a2d16; --bad:#ef7a70; --bad-soft:#3d1f1c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:12px 16px 0;display:flex;flex-direction:column;gap:8px}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{font-family:var(--display);font-weight:800;font-size:22px;margin:0;letter-spacing:.02em}
+.brand .sub{color:var(--muted);font-size:13px}
+.status{margin-left:auto;font-size:12px;color:var(--muted)}
+nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:8px 12px 9px;font:inherit;font-size:14px;color:var(--muted);cursor:pointer}
+nav button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent);font-weight:700}
+nav button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{max-width:1180px;margin:0 auto;padding-block:20px 64px;padding-inline:16px;display:flex;flex-direction:column;gap:20px}
+section.tab{display:flex;flex-direction:column;gap:20px}
+h2{font-family:var(--display);font-size:20px;margin:0;text-wrap:balance}
+h3{font-size:15px;margin:0;font-weight:700}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.row.between{justify-content:space-between}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.kpi .l{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.kpi .v{font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.kpi .n{font-size:12px;color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.num,td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.tbl{overflow-x:auto;margin:0 -4px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;font-weight:500;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;letter-spacing:.04em}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tfoot td{font-weight:700;border-top:1px solid var(--line)}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;white-space:nowrap;font-weight:500}
+.p-good{background:var(--good-soft);color:var(--good)}
+.p-warn{background:var(--warn-soft);color:var(--warn)}
+.p-bad{background:var(--bad-soft);color:var(--bad)}
+.p-mute{background:var(--surface-2);color:var(--muted)}
+button.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 14px;border-radius:6px;cursor:pointer}
+button.btn:hover{background:var(--surface-2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+button.primary:hover{background:var(--accent);filter:brightness(1.07)}
+button.link{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:2px 4px}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+input,select,textarea{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;width:100%}
+input[type=number]{font-family:var(--mono)}
+td input{padding:4px 6px;max-width:110px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end}
+.bar{display:flex;flex-direction:column;gap:3px}
+.bar-track{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;background:var(--accent);border-radius:4px}
+.empty{padding:20px;border:1px dashed var(--line);border-radius:var(--r);color:var(--muted);text-align:center;font-size:14px}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.overlay{position:fixed;inset:0;background:rgba(10,14,12,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:max(40px,env(safe-area-inset-top,0px)) 16px 24px;overflow-y:auto}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;width:100%;max-width:640px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:14px;z-index:60}
+svg text{fill:var(--muted);font-family:var(--mono);font-size:10px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<style>
+html,body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+img{max-width:100%}
+.login{max-width:380px;margin:12vh auto 0;padding-inline:16px;display:flex;flex-direction:column;gap:14px}
+.login h1{font-family:var(--display);font-size:26px;margin:0}
+.login input{font-size:22px;letter-spacing:.3em;text-align:center;font-family:var(--mono)}
+.role{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.offline{background:var(--warn-soft);color:var(--warn);font-size:13px;padding:6px 16px;text-align:center}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <h1 id="shopName">鍋物庫存與損益</h1>
+      <span class="sub">食材庫存・配方成本・每日營收・盤點損耗</span>
+      <span class="status" id="status">連線中…</span><span class="role" id="roleTag" hidden></span><button class="link" id="logoutBtn" data-act="logout" hidden>登出</button>
+    </div>
+    <nav role="tablist" id="nav"></nav>
+  </div>
+</header>
+<div class="offline" id="offline" hidden>目前沒有網路，畫面顯示的是上次的資料，暫時無法儲存。</div>
+<main id="main"><div class="empty">正在載入資料…</div></main>
+<div id="modalRoot"></div>
+
+<script src="config.js"></script>
+<script>
+(function(){
+"use strict";
+const TABS=[["overview","總覽"],["stock","庫存"],["moves","進貨・報廢"],["menu","菜單成本"],["sales","每日營收"],["count","盤點"],["report","損益報表"],["settings","設定"]];
+const EXP_CATS=["人事","租金","水電瓦斯","耗材包材","行銷廣告","平台抽成","其他"];
+const S={ingredients:[],movements:[],menu:[],sales:[],expenses:[],stocktakes:[],settings:{shopName:"",targetFoodCost:38}};
+let db=null,me=null,tab="overview",canWrite=true,ready=false,role=null,pin="";
+const OWNER_TABS=TABS.map(t=>t[0]),STAFF_TABS=["overview","stock","moves","sales","count"];
+const isOwner=()=>role==="owner";
+const tabs=()=>TABS.filter(t=>(isOwner()?OWNER_TABS:STAFF_TABS).includes(t[0]));
+try{const h=(location.hash||"").slice(1);if(TABS.some(t=>t[0]===h))tab=h;else{const s=localStorage.getItem("hp_tab");if(s&&TABS.some(t=>t[0]===s))tab=s;}}catch(e){}
+let reportMonth=today().slice(0,7), salesDate=today(), moveFilter="all";
+
+/* ---------- utils ---------- */
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function addDays(s,n){const d=new Date(s+"T00:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const n=v=>{const x=parseFloat(v);return isFinite(x)?x:0};
+const money=v=>(v<0?"−":"")+"$"+Math.round(Math.abs(v)).toLocaleString("zh-TW");
+const qty=v=>{const r=Math.round(v*100)/100;return r.toLocaleString("zh-TW",{maximumFractionDigits:2})};
+const pct=v=>isFinite(v)?(Math.round(v*10)/10).toFixed(1)+"%":"—";
+const $=s=>document.querySelector(s);
+function toast(msg){document.querySelectorAll(".toast").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
+function ingById(id){return S.ingredients.find(i=>i.id===id);}
+function menuById(id){return S.menu.find(m=>m.id===id);}
+
+/* ---------- derived numbers ---------- */
+let D={};
+function derive(){
+  const cost={},inQ={},inV={},stock={},usage={};
+  for(const i of S.ingredients){inQ[i.id]=0;inV[i.id]=0;stock[i.id]=0;usage[i.id]=0;}
+  for(const m of S.movements){if(!(m.ingId in stock))continue;
+    if(m.type==="in"){stock[m.ingId]+=n(m.qty);inQ[m.ingId]+=n(m.qty);inV[m.ingId]+=n(m.qty)*n(m.unitCost);}
+    else stock[m.ingId]-=n(m.qty);}
+  for(const i of S.ingredients)cost[i.id]=inQ[i.id]>0?inV[i.id]/inQ[i.id]:n(i.cost);
+  const recipeCost={};
+  for(const m of S.menu){let c=0;for(const l of (m.lines||[]))c+=n(l.qty)*(cost[l.ingId]||0);recipeCost[m.id]=c;}
+  for(const sd of S.sales){for(const [mid,q] of Object.entries(sd.items||{})){const m=menuById(mid);if(!m)continue;for(const l of (m.lines||[]))if(l.ingId in usage)usage[l.ingId]+=n(q)*n(l.qty);}}
+  for(const i of S.ingredients)stock[i.id]-=usage[i.id];
+  for(const st of S.stocktakes)for(const l of (st.lines||[]))if(l.ingId in stock)stock[l.ingId]+=n(l.adjust);
+  D={cost,stock,recipeCost,usage};
+}
+function stockState(i){const s=D.stock[i.id]||0,saf=n(i.safety);if(s<=0)return["缺貨","p-bad"];if(s<saf)return["低於安全量","p-warn"];return["正常","p-good"];}
+function inRange(d,a,b){return d>=a&&d<=b;}
+function periodStats(a,b){
+  let revenue=0,guests=0,theo=0,days=0;const byMenu={},daily={};
+  for(const sd of S.sales){if(!inRange(sd.date,a,b))continue;days++;guests+=n(sd.guests);let dr=0,dc=0;
+    for(const [mid,q] of Object.entries(sd.items||{})){const qq=n(q);if(!qq)continue;const m=menuById(mid);const price=sd.prices&&sd.prices[mid]!=null?n(sd.prices[mid]):(m?n(m.price):0);
+      const c=(D.recipeCost[mid]||0)*qq;dr+=price*qq;dc+=c;
+      const b=byMenu[mid]||(byMenu[mid]={qty:0,rev:0,cost:0});b.qty+=qq;b.rev+=price*qq;b.cost+=c;}
+    dr+=n(sd.other);revenue+=dr;theo+=dc;daily[sd.date]={rev:dr,cost:dc,guests:n(sd.guests)};}
+  let purchases=0,waste=0,useOut=0;const wasteBy={};
+  for(const m of S.movements){if(!inRange(m.date,a,b))continue;const c=D.cost[m.ingId]||0;
+    if(m.type==="in")purchases+=n(m.qty)*n(m.unitCost);
+    else if(m.type==="waste"){waste+=n(m.qty)*c;wasteBy[m.ingId]=(wasteBy[m.ingId]||0)+n(m.qty)*c;}
+    else useOut+=n(m.qty)*c;}
+  let countLoss=0;for(const st of S.stocktakes){if(!inRange(st.date,a,b))continue;for(const l of (st.lines||[]))countLoss+=-n(l.adjust)*(n(l.cost)||D.cost[l.ingId]||0);}
+  let exp=0;const expBy={};for(const e of S.expenses){if(!inRange(e.date,a,b))continue;exp+=n(e.amount);expBy[e.cat]=(expBy[e.cat]||0)+n(e.amount);}
+  const actual=theo+waste+useOut+countLoss;
+  return{revenue,guests,theo,days,byMenu,daily,purchases,waste,wasteBy,useOut,countLoss,exp,expBy,actual,gross:revenue-actual,net:revenue-actual-exp};
+}
+function monthRange(ym){const [y,m]=ym.split("-").map(Number);const last=new Date(y,m,0).getDate();return[ym+"-01",ym+"-"+String(last).padStart(2,"0")];}
+
+/* ---------- writes ---------- */
+async function w(fn,ok){if(!db){toast("尚未連上資料庫");return false;}try{await fn();if(ok)toast(ok);return true;}catch(e){console.error(e);toast(e&&e.code==="permission_denied"?"員工密碼不能做這件事，請老闆操作":e&&e.code==="bad_pin"?"密碼已變更，請重新登入":"儲存失敗："+(e&&e.message||"請檢查網路後再試"));if(e&&e.code==="bad_pin")logout();return false;}}
+const meta=()=>({by:me||"",at:new Date().toISOString()});
+
+/* ---------- render ---------- */
+let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render();});}
+function renderNav(){if(!role){$("#nav").innerHTML="";return;}if(!tabs().some(t=>t[0]===tab))tab="overview";$("#nav").innerHTML=tabs().map(([k,l])=>`<button role="tab" id="t_${k}" aria-selected="${k===tab}" data-tab="${k}">${l}</button>`).join("");}
+function render(){
+  if(!role){renderLogin();return;}
+  if(!ready){return;}
+  derive();
+  $("#shopName").textContent=S.settings.shopName||"鍋物庫存與損益";
+  renderNav();
+  const active=document.activeElement&&document.activeElement.id;
+  const R={overview,stock,moves,menu,sales,count,report,settings}[tab];
+  $("#main").innerHTML=`<section class="tab">${R()}</section>`;
+  for(const [k,v] of Object.entries(dirty)){const el=document.getElementById(k);if(el)el.value=v;}
+  const mt=$("#mv_type");if(mt){const inT=mt.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
+  document.querySelectorAll(".ctq").forEach(ctDiff);
+  if(active){const el=document.getElementById(active);if(el&&el.tagName!=="BUTTON")el.focus();}
+}
+/* values people typed but haven't saved survive live updates from other devices */
+const dirty={};
+function clearDirty(prefix){for(const k of Object.keys(dirty))if(k.startsWith(prefix))delete dirty[k];}
+function ctDiff(t){const ing=t.dataset.ing,cell=document.getElementById("ctd_"+ing);if(!cell)return;if(t.value===""){cell.textContent="—";return;}const d=n(t.value)-(D.stock[ing]||0);const i=ingById(ing);cell.innerHTML=`<span class="pill ${Math.abs(d)<1e-9?"p-good":d<0?"p-bad":"p-warn"}">${d>0?"+":""}${qty(d)} ${esc(i?i.unit:"")}</span>`;}
+
+function overview(){
+  const t=today(),[ma,mb]=monthRange(t.slice(0,7));
+  const day=periodStats(t,t),mon=periodStats(ma,mb);
+  const target=n(S.settings.targetFoodCost)||38;
+  const low=S.ingredients.filter(i=>(D.stock[i.id]||0)<n(i.safety)).sort((a,b)=>(D.stock[a.id]/(n(a.safety)||1))-(D.stock[b.id]/(n(b.safety)||1)));
+  const soon=S.movements.filter(m=>m.type==="in"&&m.expiry&&m.expiry<=addDays(t,3)&&m.expiry>=addDays(t,-7)&&(D.stock[m.ingId]||0)>0).sort((a,b)=>a.expiry<b.expiry?-1:1);
+  const fcp=mon.revenue?mon.actual/mon.revenue*100:NaN;
+  const setup=isOwner()&&(!S.movements.length||!S.sales.length);
+  return `
+  ${setup?`<div class="panel"><h3>開始使用</h3><ol class="steps small">
+    <li>到「設定」改店名；到「庫存」把範例食材改成你們實際的品項、單位、成本與安全庫存量。</li>
+    <li>到「菜單成本」調整每道餐點的售價與配方用量，系統會自動算出單份成本與毛利率。</li>
+    <li>到「進貨・報廢」登記一次期初庫存（把目前現場的量當作一筆進貨）。</li>
+    <li>每天打烊後到「每日營收」輸入各品項賣出份數與來客數，庫存會依配方自動扣減。</li>
+    <li>定期到「盤點」輸入實際數量，系統會算出理論與實際的差異，也就是損耗。</li></ol></div>`:""}
+  ${isOwner()?`<div class="kpis">
+    <div class="kpi"><span class="l">今日營收</span><span class="v">${money(day.revenue)}</span><span class="n">${day.guests?`來客 ${day.guests} 人・客單 ${money(day.revenue/day.guests)}`:"尚未登記"}</span></div>
+    <div class="kpi"><span class="l">本月營收</span><span class="v">${money(mon.revenue)}</span><span class="n">已登記 ${mon.days} 天</span></div>
+    <div class="kpi"><span class="l">本月食材成本率</span><span class="v">${pct(fcp)}</span><span class="n">目標 ${target}%　${isFinite(fcp)?(fcp<=target?'<span class="pill p-good">達標</span>':'<span class="pill p-bad">超標</span>'):""}</span></div>
+    <div class="kpi"><span class="l">本月淨利（估）</span><span class="v">${money(mon.net)}</span><span class="n">已扣食材、損耗與費用</span></div>
+  </div>`:""}
+  <div class="grid2">
+    <div class="panel"><div class="row between"><h3>需要叫貨</h3><span class="pill ${low.length?"p-warn":"p-good"}">${low.length} 項</span></div>
+      ${low.length?`<div class="tbl"><table><thead><tr><th>食材</th><th class="num">現有</th><th class="num">安全量</th><th class="num">建議叫貨</th><th></th></tr></thead><tbody>
+      ${low.slice(0,12).map(i=>{const s=D.stock[i.id]||0,[l,c]=stockState(i);return `<tr><td>${esc(i.name)}</td><td class="num">${qty(s)} ${esc(i.unit)}</td><td class="num">${qty(n(i.safety))}</td><td class="num">${qty(Math.max(0,n(i.par||i.safety*2)-s))} ${esc(i.unit)}</td><td><span class="pill ${c}">${l}</span></td></tr>`}).join("")}
+      </tbody></table></div>`:`<div class="empty">所有食材都在安全庫存以上。</div>`}
+    </div>
+    <div class="panel"><div class="row between"><h3>即將到期</h3><span class="pill ${soon.length?"p-warn":"p-good"}">${soon.length} 批</span></div>
+      ${soon.length?`<div class="tbl"><table><thead><tr><th>食材</th><th>進貨日</th><th>到期日</th><th class="num">該批數量</th></tr></thead><tbody>
+      ${soon.map(m=>{const i=ingById(m.ingId);const past=m.expiry<t;return `<tr><td>${esc(i?i.name:"(已刪除)")}</td><td class="small">${esc(m.date)}</td><td><span class="pill ${past?"p-bad":"p-warn"}">${esc(m.expiry)}${past?" 已過期":""}</span></td><td class="num">${qty(n(m.qty))} ${esc(i?i.unit:"")}</td></tr>`}).join("")}
+      </tbody></table></div><p class="small muted">先用先到期的批次；確定不能用的，到「進貨・報廢」登記報廢，損耗才會算進成本。</p>`:`<div class="empty">三天內沒有到期的進貨批次。登記進貨時填上到期日，這裡就會提醒。</div>`}
+    </div>
+  </div>
+  ${isOwner()?trendPanel(addDays(t,-13),t,"近 14 天營收與食材成本"):""}`;
+}
+
+function trendPanel(a,b,title){
+  const days=[];for(let d=a;d<=b;d=addDays(d,1))days.push(d);
+  const st=periodStats(a,b);const vals=days.map(d=>st.daily[d]||{rev:0,cost:0});
+  const max=Math.max(1,...vals.map(v=>v.rev));
+  const nice=niceMax(max);const W=Math.max(320,days.length*26+50),H=180,L=48,B=24,T=10,cw=(W-L-8)/days.length;
+  const y=v=>T+(H-T-B)*(1-v/nice);
+  let g="";for(let k=0;k<=4;k++){const v=nice*k/4;g+=`<line x1="${L}" x2="${W-4}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v>=1000?(v/1000)+"k":v}</text>`;}
+  let bars="";days.forEach((d,ix)=>{const v=vals[ix],x=L+ix*cw+3,bw=Math.max(4,cw-6);
+    if(v.rev>0)bars+=`<rect x="${x}" y="${y(v.rev)}" width="${bw}" height="${H-B-y(v.rev)}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1" rx="2"><title>${d} 營收 ${money(v.rev)}</title></rect>`;
+    if(v.cost>0)bars+=`<rect x="${x+bw*0.25}" y="${y(v.cost)}" width="${bw*0.5}" height="${H-B-y(v.cost)}" fill="var(--accent)" rx="1"><title>${d} 理論食材成本 ${money(v.cost)}</title></rect>`;
+    if(days.length<=16||ix%2===0)bars+=`<text x="${x+bw/2}" y="${H-8}" text-anchor="middle">${d.slice(5).replace("-","/")}</text>`;});
+  const has=vals.some(v=>v.rev>0);
+  return `<div class="panel"><div class="row between"><h3>${title}</h3><div class="legend"><span><i class="sw" style="background:var(--accent-soft);border:1px solid var(--accent)"></i>營收</span><span><i class="sw" style="background:var(--accent)"></i>理論食材成本</span></div></div>
+  ${has?`<div class="tbl"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.min(W,560)}px;max-height:240px" role="img" aria-label="${title}">${g}${bars}</svg></div>`:`<div class="empty">這段期間還沒有營收資料。到「每日營收」登記後，這裡會顯示每日長條圖。</div>`}</div>`;
+}
+function niceMax(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;}
+
+function stock(){
+  const cats=[...new Set(S.ingredients.map(i=>i.cat||"未分類"))];
+  let total=0;for(const i of S.ingredients)total+=Math.max(0,D.stock[i.id]||0)*(D.cost[i.id]||0);
+  return `<div class="row between"><h2>食材庫存</h2><div class="row">${isOwner()?`<span class="small muted">庫存總值 <b class="num">${money(total)}</b></span><button class="btn primary" data-act="ing-new">新增食材</button>`:""}</div></div>
+  <p class="small muted" style="margin:0">現有量 = 進貨 − 報廢與領用 − 依配方從營收自動扣減 ± 盤點調整。${isOwner()?"單位成本取所有進貨的加權平均，還沒有進貨時用你填的參考成本。":"新增或修改食材品項請找老闆。"}</p>
+  ${S.ingredients.length?cats.map(c=>`<div class="panel"><h3>${esc(c)}</h3><div class="tbl"><table><thead><tr><th>食材</th><th class="num">現有量</th><th class="num">安全量</th>${isOwner()?`<th class="num">單位成本</th><th class="num">庫存值</th>`:""}<th>狀態</th><th>供應商</th>${isOwner()?"<th></th>":""}</tr></thead><tbody>
+  ${S.ingredients.filter(i=>(i.cat||"未分類")===c).map(i=>{const s=D.stock[i.id]||0,[l,cl]=stockState(i);return `<tr><td>${esc(i.name)}</td><td class="num">${qty(s)} ${esc(i.unit)}</td><td class="num">${qty(n(i.safety))}</td>${isOwner()?`<td class="num">${money(D.cost[i.id]||0)}/${esc(i.unit)}</td><td class="num">${money(Math.max(0,s)*(D.cost[i.id]||0))}</td>`:""}<td><span class="pill ${cl}">${l}</span></td><td class="small muted">${esc(i.supplier||"")}</td>${isOwner()?`<td><button class="link" data-act="ing-edit" data-id="${i.id}">編輯</button></td>`:""}</tr>`}).join("")}
+  </tbody></table></div></div>`).join(""):`<div class="empty">還沒有食材。按「新增食材」建立第一項，例如牛五花、高麗菜、湯底。</div>`}`;
+}
+
+function moves(){
+  const opts=S.ingredients.map(i=>`<option value="${i.id}">${esc(i.name)}（${esc(i.unit)}）</option>`).join("");
+  const list=S.movements.filter(m=>moveFilter==="all"||m.type===moveFilter).sort((a,b)=>(b.date+(b.at||""))>(a.date+(a.at||""))?1:-1).slice(0,150);
+  const TL={in:["進貨","p-good"],waste:["報廢","p-bad"],out:["領用","p-mute"]};
+  return `<h2>進貨・報廢登記</h2>
+  <div class="panel"><h3>新增一筆</h3>
+   ${S.ingredients.length?`<div class="form">
+    <label class="f">類型<select id="mv_type"><option value="in">進貨</option><option value="waste">報廢（過期、損壞、做壞）</option><option value="out">其他領用（員工餐、試菜、招待）</option></select></label>
+    <label class="f">日期<input type="date" id="mv_date" value="${today()}"></label>
+    <label class="f">食材<select id="mv_ing">${opts}</select></label>
+    <label class="f">數量<input type="number" step="any" min="0" id="mv_qty" inputmode="decimal"></label>
+    <label class="f" id="mv_cost_w">進貨單價（每單位${isOwner()?"":"，不知道可空白"}）<input type="number" step="any" min="0" id="mv_cost" inputmode="decimal"></label>
+    <label class="f" id="mv_exp_w">到期日（選填）<input type="date" id="mv_exp"></label>
+    <label class="f">備註<input id="mv_note" placeholder="供應商、單號、原因"></label>
+    <button class="btn primary" data-act="mv-add">登記</button></div>
+    <p class="small muted" style="margin:0" id="mv_hint"></p>`:`<div class="empty">請先到「庫存」建立食材。</div>`}
+  </div>
+  <div class="panel"><div class="row between"><h3>紀錄</h3><select id="mv_filter" style="width:auto"><option value="all"${moveFilter==="all"?" selected":""}>全部</option><option value="in"${moveFilter==="in"?" selected":""}>進貨</option><option value="waste"${moveFilter==="waste"?" selected":""}>報廢</option><option value="out"${moveFilter==="out"?" selected":""}>領用</option></select></div>
+  ${list.length?`<div class="tbl"><table><thead><tr><th>日期</th><th>類型</th><th>食材</th><th class="num">數量</th>${isOwner()?`<th class="num">金額</th>`:""}<th>到期日</th><th>備註</th><th></th></tr></thead><tbody>
+  ${list.map(m=>{const i=ingById(m.ingId);const amt=m.type==="in"?n(m.qty)*n(m.unitCost):n(m.qty)*(D.cost[m.ingId]||0);const[l,c]=TL[m.type]||["?","p-mute"];
+   return `<tr><td class="small">${esc(m.date)}</td><td><span class="pill ${c}">${l}</span></td><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(m.qty))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(amt)}</td>`:""}<td class="small">${esc(m.expiry||"")}</td><td class="small muted">${esc(m.note||"")}</td><td><button class="link danger" data-act="mv-del" data-id="${m.id}">刪除</button></td></tr>`}).join("")}
+  </tbody></table></div>`:`<div class="empty">還沒有紀錄。第一筆建議登記「期初庫存」：把現場每樣食材目前的量當作一筆進貨。</div>`}</div>`;
+}
+
+function menu(){
+  const target=n(S.settings.targetFoodCost)||38;
+  return `<div class="row between"><h2>菜單配方成本</h2><button class="btn primary" data-act="menu-new">新增餐點</button></div>
+  <p class="small muted" style="margin:0">每道餐點填入一份所需的食材用量，系統依目前食材單位成本算出單份成本。食材成本率高於目標 ${target}% 的會標紅。</p>
+  ${S.menu.length?`<div class="panel"><div class="tbl"><table><thead><tr><th>餐點</th><th>分類</th><th class="num">售價</th><th class="num">單份成本</th><th class="num">毛利</th><th class="num">成本率</th><th></th></tr></thead><tbody>
+  ${S.menu.map(m=>{const c=D.recipeCost[m.id]||0,p=n(m.price),r=p?c/p*100:NaN;return `<tr><td>${esc(m.name)}</td><td class="small muted">${esc(m.cat||"")}</td><td class="num">${money(p)}</td><td class="num">${money(c)}</td><td class="num">${money(p-c)}</td><td class="num"><span class="pill ${!isFinite(r)?"p-mute":r>target?"p-bad":r>target-5?"p-warn":"p-good"}">${pct(r)}</span></td><td><button class="link" data-act="menu-edit" data-id="${m.id}">配方</button></td></tr>`}).join("")}
+  </tbody></table></div></div>`:`<div class="empty">還沒有餐點。按「新增餐點」，例如牛五花套餐、麻辣鍋底、加點肉盤。</div>`}`;
+}
+
+function sales(){
+  const doc=S.sales.find(s=>s.date===salesDate)||{items:{},guests:"",other:""};
+  const cats=[...new Set(S.menu.map(m=>m.cat||"其他"))];
+  let rev=0,cost=0;for(const m of S.menu){const q=n(doc.items[m.id]);rev+=q*n(m.price);cost+=q*(D.recipeCost[m.id]||0);}rev+=n(doc.other);
+  const recent=[...S.sales].sort((a,b)=>a.date<b.date?1:-1).slice(0,10);
+  return `<h2>每日營收登記</h2>
+  <div class="panel"><div class="form" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+   <label class="f">營業日<input type="date" id="sl_date" value="${salesDate}"></label>
+   <label class="f">來客數<input type="number" min="0" step="1" id="sl_guests" value="${esc(doc.guests)}" inputmode="numeric"></label>
+   <label class="f">其他收入（服務費、飲料櫃等）<input type="number" min="0" step="any" id="sl_other" value="${esc(doc.other)}" inputmode="decimal"></label>
+  </div>
+  ${S.menu.length?cats.map(c=>`<h3 style="margin-top:4px">${esc(c)}</h3><div class="tbl"><table><thead><tr><th>餐點</th><th class="num">售價</th><th class="num">賣出份數</th></tr></thead><tbody>
+   ${S.menu.filter(m=>(m.cat||"其他")===c).map(m=>`<tr><td>${esc(m.name)}</td><td class="num">${money(n(m.price))}</td><td class="num"><input type="number" min="0" step="1" id="sl_q_${m.id}" data-mid="${m.id}" class="slq" value="${doc.items[m.id]!=null&&doc.items[m.id]!==0?esc(doc.items[m.id]):""}" inputmode="numeric" style="text-align:right"></td></tr>`).join("")}
+   </tbody></table></div>`).join(""):`<div class="empty">請先到「菜單成本」建立餐點。</div>`}
+  <div class="row between"><span class="small muted">已存的數字：營收 <b class="num">${money(rev)}</b>${isOwner()?`・理論食材成本 <b class="num">${money(cost)}</b>`:""}</span>
+   <div class="row">${S.sales.some(s=>s.date===salesDate)?`<button class="btn danger" data-act="sl-del">刪除這天</button>`:""}<button class="btn primary" data-act="sl-save">儲存 ${salesDate.slice(5).replace("-","/")} 營收</button></div></div>
+  <p class="small muted" style="margin:0">儲存後，庫存會依每道餐點的配方自動扣減。同一天可重複修改，以最後一次為準。售價以儲存當下為準，日後改價不影響已存的營收。</p></div>
+  <div class="panel"><h3>最近登記</h3>${recent.length?`<div class="tbl"><table><thead><tr><th>日期</th><th class="num">來客</th><th class="num">營收</th><th class="num">客單價</th><th></th></tr></thead><tbody>
+  ${recent.map(s=>{const st=periodStats(s.date,s.date);return `<tr><td>${esc(s.date)}</td><td class="num">${n(s.guests)||"—"}</td><td class="num">${money(st.revenue)}</td><td class="num">${n(s.guests)?money(st.revenue/n(s.guests)):"—"}</td><td><button class="link" data-act="sl-open" data-date="${s.date}">開啟</button></td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty">還沒有登記任何一天。</div>`}</div>`;
+}
+
+function count(){
+  const last=[...S.stocktakes].sort((a,b)=>a.date<b.date?1:-1);
+  return `<h2>盤點與損耗</h2>
+  <div class="panel"><div class="row between"><h3>新增盤點</h3><label class="f" style="flex-direction:row;align-items:center;gap:8px">盤點日<input type="date" id="ct_date" value="${today()}" style="width:auto"></label></div>
+  <p class="small muted" style="margin:0">只填有實際盤到的項目，空白的會略過。系統量是依進貨、報廢與營收算出的理論值；實盤比系統少的部分就是盤損，會計入當月實際食材成本。</p>
+  ${S.ingredients.length?`<div class="tbl"><table><thead><tr><th>食材</th><th class="num">系統量</th><th class="num">實盤量</th><th class="num">差異</th></tr></thead><tbody>
+  ${S.ingredients.map(i=>`<tr><td>${esc(i.name)}</td><td class="num">${qty(D.stock[i.id]||0)} ${esc(i.unit)}</td><td class="num"><input type="number" min="0" step="any" id="ct_${i.id}" data-ing="${i.id}" class="ctq" inputmode="decimal" style="text-align:right"></td><td class="num" id="ctd_${i.id}">—</td></tr>`).join("")}
+  </tbody></table></div><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="ct-save">儲存盤點結果</button></div>`:`<div class="empty">請先建立食材。</div>`}</div>
+  <div class="panel"><h3>盤點紀錄</h3>
+  ${last.length?last.map(st=>{let loss=0;const rows=(st.lines||[]).filter(l=>Math.abs(n(l.adjust))>1e-9).sort((a,b)=>n(a.adjust)*n(a.cost)-n(b.adjust)*n(b.cost));for(const l of st.lines||[])loss+=-n(l.adjust)*n(l.cost);
+   return `<details><summary class="row between" style="cursor:pointer;padding:6px 0"><span>${esc(st.date)}・盤點 ${(st.lines||[]).length} 項</span>${isOwner()?`<span class="pill ${loss>0?"p-bad":"p-good"}">${loss>0?"盤損 ":"盤盈 "}${money(Math.abs(loss))}</span>`:""}</summary>
+   ${rows.length?`<div class="tbl"><table><thead><tr><th>食材</th><th class="num">系統</th><th class="num">實盤</th><th class="num">差異</th>${isOwner()?`<th class="num">金額</th>`:""}</tr></thead><tbody>${rows.map(l=>{const i=ingById(l.ingId);return `<tr><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(l.expected))}</td><td class="num">${qty(n(l.counted))}</td><td class="num">${n(l.adjust)>0?"+":""}${qty(n(l.adjust))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(n(l.adjust)*n(l.cost))}</td>`:""}</tr>`}).join("")}</tbody></table></div>`:`<p class="small muted">這次盤點完全吻合。</p>`}
+   <div class="row" style="justify-content:flex-end"><button class="link danger" data-act="ct-del" data-id="${st.id}">刪除這次盤點</button></div></details>`}).join(""):`<div class="empty">還沒有盤點紀錄。建議每週盤一次肉品與海鮮等高單價食材。</div>`}</div>`;
+}
+
+function report(){
+  const [a,b]=monthRange(reportMonth);const st=periodStats(a,b);const target=n(S.settings.targetFoodCost)||38;
+  const r=v=>st.revenue?pct(v/st.revenue*100):"—";
+  const menuRows=Object.entries(st.byMenu).map(([id,v])=>({id,name:(menuById(id)||{}).name||"(已刪除)",...v})).sort((x,y)=>(y.rev-y.cost)-(x.rev-x.cost));
+  const totalProfit=menuRows.reduce((s,v)=>s+v.rev-v.cost,0)||1;
+  const mexp=S.expenses.filter(e=>inRange(e.date,a,b)).sort((x,y)=>x.date<y.date?-1:1);
+  const wasteRows=Object.entries(st.wasteBy).sort((x,y)=>y[1]-x[1]);
+  return `<div class="row between"><h2>損益報表</h2><label class="f" style="flex-direction:row;align-items:center;gap:8px">月份<input type="month" id="rp_month" value="${reportMonth}" style="width:auto"></label></div>
+  <div class="kpis">
+   <div class="kpi"><span class="l">營收</span><span class="v">${money(st.revenue)}</span><span class="n">${st.days} 天・來客 ${st.guests} 人${st.guests?"・客單 "+money(st.revenue/st.guests):""}</span></div>
+   <div class="kpi"><span class="l">實際食材成本</span><span class="v">${money(st.actual)}</span><span class="n">成本率 ${r(st.actual)}（目標 ${target}%）</span></div>
+   <div class="kpi"><span class="l">毛利</span><span class="v">${money(st.gross)}</span><span class="n">毛利率 ${r(st.gross)}</span></div>
+   <div class="kpi"><span class="l">淨利</span><span class="v" style="color:${st.net<0?"var(--bad)":"var(--fg)"}">${money(st.net)}</span><span class="n">淨利率 ${r(st.net)}</span></div>
+  </div>
+  <div class="grid2">
+   <div class="panel"><h3>損益表</h3><div class="tbl"><table><tbody>
+    <tr><td>營業收入</td><td class="num">${money(st.revenue)}</td><td class="num muted">100%</td></tr>
+    <tr><td class="muted">　理論食材成本（依配方）</td><td class="num">${money(st.theo)}</td><td class="num muted">${r(st.theo)}</td></tr>
+    <tr><td class="muted">　報廢損耗</td><td class="num">${money(st.waste)}</td><td class="num muted">${r(st.waste)}</td></tr>
+    <tr><td class="muted">　員工餐・招待等領用</td><td class="num">${money(st.useOut)}</td><td class="num muted">${r(st.useOut)}</td></tr>
+    <tr><td class="muted">　盤點差異（盤損為正）</td><td class="num">${money(st.countLoss)}</td><td class="num muted">${r(st.countLoss)}</td></tr>
+    <tr><td><b>實際食材成本</b></td><td class="num"><b>${money(st.actual)}</b></td><td class="num">${r(st.actual)}</td></tr>
+    <tr><td><b>毛利</b></td><td class="num"><b>${money(st.gross)}</b></td><td class="num">${r(st.gross)}</td></tr>
+    ${EXP_CATS.filter(c=>st.expBy[c]).map(c=>`<tr><td class="muted">　${c}</td><td class="num">${money(st.expBy[c])}</td><td class="num muted">${r(st.expBy[c])}</td></tr>`).join("")}
+    <tr><td>營業費用合計</td><td class="num">${money(st.exp)}</td><td class="num muted">${r(st.exp)}</td></tr>
+   </tbody><tfoot><tr><td>本月淨利</td><td class="num">${money(st.net)}</td><td class="num">${r(st.net)}</td></tr></tfoot></table></div>
+   <p class="small muted" style="margin:0">本月進貨付款總額 ${money(st.purchases)}（現金流參考，不等於食材成本，差額反映在庫存增減）。</p></div>
+   <div class="panel"><div class="row between"><h3>營業費用</h3><button class="btn" data-act="exp-new">新增費用</button></div>
+    ${mexp.length?`<div class="tbl"><table><thead><tr><th>日期</th><th>類別</th><th>說明</th><th class="num">金額</th><th></th></tr></thead><tbody>${mexp.map(e=>`<tr><td class="small">${esc(e.date)}</td><td><span class="pill p-mute">${esc(e.cat)}</span></td><td class="small">${esc(e.note||"")}</td><td class="num">${money(n(e.amount))}</td><td><button class="link danger" data-act="exp-del" data-id="${e.id}">刪除</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">本月還沒有費用。新增人事、租金、水電瓦斯等，淨利才會準確。</div>`}
+   </div>
+  </div>
+  ${trendPanel(a,b,"每日營收與理論食材成本")}
+  <div class="panel"><h3>菜單獲利排行</h3>
+  ${menuRows.length?`<div class="tbl"><table><thead><tr><th>餐點</th><th class="num">份數</th><th class="num">營收</th><th class="num">成本率</th><th class="num">毛利貢獻</th><th style="min-width:120px">占總毛利</th></tr></thead><tbody>
+   ${menuRows.map(v=>{const pr=v.rev-v.cost,share=pr/totalProfit*100,cr=v.rev?v.cost/v.rev*100:NaN;return `<tr><td>${esc(v.name)}</td><td class="num">${qty(v.qty)}</td><td class="num">${money(v.rev)}</td><td class="num"><span class="pill ${cr>target?"p-bad":"p-good"}">${pct(cr)}</span></td><td class="num">${money(pr)}</td><td><div class="bar"><div class="bar-track"><div class="bar-fill" style="width:${Math.max(0,Math.min(100,share))}%"></div></div><span class="small muted">${pct(share)}</span></div></td></tr>`}).join("")}
+  </tbody></table></div><p class="small muted" style="margin:0">賣得多但成本率超標的品項，優先考慮調價或調整份量；毛利貢獻低又賣得少的，可考慮下架。</p>`:`<div class="empty">這個月還沒有營收資料。</div>`}</div>
+  <div class="panel"><h3>報廢損耗明細</h3>${wasteRows.length?`<div class="tbl"><table><thead><tr><th>食材</th><th class="num">報廢金額</th></tr></thead><tbody>${wasteRows.map(([id,v])=>`<tr><td>${esc((ingById(id)||{}).name||"(已刪除)")}</td><td class="num">${money(v)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">本月沒有報廢紀錄。</div>`}</div>`;
+}
+
+function settings(){
+  return `<h2>設定</h2><div class="panel"><div class="form">
+   <label class="f">店名<input id="st_name" value="${esc(S.settings.shopName||"")}" placeholder="例如：鼎旺麻辣鍋 信義店"></label>
+   <label class="f">目標食材成本率（%）<input type="number" step="any" min="0" max="100" id="st_target" value="${esc(S.settings.targetFoodCost||38)}"></label>
+   <button class="btn primary" data-act="st-save">儲存設定</button></div>
+   <p class="small muted" style="margin:0">火鍋與燒烤業的食材成本率一般落在 35%～45%，吃到飽型態通常更高。請依你們的定價策略設定。</p></div>
+   <div class="panel"><h3>密碼與員工</h3><p class="small muted" style="margin:0">員工密碼只能登記進貨、報廢、營收與盤點，看不到成本、菜單成本與損益報表。要更換密碼，請到 Google 試算表的「擴充功能 → Apps Script」修改最上面兩行，再按「部署 → 管理部署作業 → 編輯 → 新版本 → 部署」。換了密碼後，大家都要用新密碼重新登入。</p></div>
+   <div class="panel"><h3>原始資料</h3><p class="small muted" style="margin:0">所有資料都存在你的 Google 試算表中，每個分頁是一類資料。不建議直接在試算表裡改內容，請用這個 App 操作。想備份時，在試算表選「檔案 → 建立副本」即可。</p></div></div>`;
+}
+
+/* ---------- modals ---------- */
+function modal(html){$("#modalRoot").innerHTML=`<div class="overlay" data-act="modal-bg"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;const f=$("#modalRoot input,#modalRoot select");if(f)f.focus();}
+function closeModal(){$("#modalRoot").innerHTML="";}
+function ingForm(i){i=i||{};const cats=[...new Set(S.ingredients.map(x=>x.cat).filter(Boolean).concat(["肉品","海鮮","蔬菜","火鍋料","湯底醬料","主食"]))];
+  modal(`<h2>${i.id?"編輯食材":"新增食材"}</h2><div class="form">
+  <label class="f">名稱<input id="ig_name" value="${esc(i.name||"")}"></label>
+  <label class="f">分類<input id="ig_cat" list="ig_cats" value="${esc(i.cat||"")}"><datalist id="ig_cats">${cats.map(c=>`<option value="${esc(c)}">`).join("")}</datalist></label>
+  <label class="f">單位<input id="ig_unit" value="${esc(i.unit||"公斤")}" placeholder="公斤、包、顆、盒"></label>
+  <label class="f">參考成本（每單位）<input type="number" step="any" min="0" id="ig_cost" value="${esc(i.cost??"")}"></label>
+  <label class="f">安全庫存量<input type="number" step="any" min="0" id="ig_safety" value="${esc(i.safety??"")}"></label>
+  <label class="f">理想庫存量（叫貨補到）<input type="number" step="any" min="0" id="ig_par" value="${esc(i.par??"")}"></label>
+  <label class="f" style="grid-column:1/-1">供應商<input id="ig_sup" value="${esc(i.supplier||"")}"></label></div>
+  <div class="row between">${i.id?`<button class="btn danger" data-act="ing-del" data-id="${i.id}">刪除食材</button>`:"<span></span>"}<div class="row"><button class="btn" data-act="modal-close">取消</button><button class="btn primary" data-act="ing-save" data-id="${i.id||""}">儲存</button></div></div>`);}
+function menuForm(m){m=m||{lines:[]};const lines=(m.lines||[]).slice();
+  const draw=()=>{const opts=id=>S.ingredients.map(i=>`<option value="${i.id}"${i.id===id?" selected":""}>${esc(i.name)}</option>`).join("");let c=0;
+    const rows=lines.map((l,ix)=>{const i=ingById(l.ingId);const lc=n(l.qty)*(D.cost[l.ingId]||0);c+=lc;return `<tr><td><select id="ml_i_${ix}" data-ix="${ix}" class="mli">${opts(l.ingId)}</select></td><td class="num"><input type="number" step="any" min="0" id="ml_q_${ix}" data-ix="${ix}" class="mlq" value="${esc(l.qty)}" style="text-align:right"></td><td class="small muted">${esc(i?i.unit:"")}</td><td class="num">${money(lc)}</td><td><button class="link danger" data-act="ml-del" data-ix="${ix}">移除</button></td></tr>`}).join("");
+    const p=n($("#mn_price")?$("#mn_price").value:m.price);
+    $("#ml_body").innerHTML=rows||`<tr><td colspan="5" class="muted small">還沒有食材，按下方「加入食材」。</td></tr>`;
+    $("#ml_sum").innerHTML=`單份成本 <b class="num">${money(c)}</b>・毛利 <b class="num">${money(p-c)}</b>・成本率 <b class="num">${p?pct(c/p*100):"—"}</b>`;};
+  modal(`<h2>${m.id?"編輯餐點配方":"新增餐點"}</h2><div class="form">
+  <label class="f">名稱<input id="mn_name" value="${esc(m.name||"")}"></label>
+  <label class="f">分類<input id="mn_cat" value="${esc(m.cat||"")}" placeholder="套餐、鍋底、加點"></label>
+  <label class="f">售價<input type="number" step="any" min="0" id="mn_price" value="${esc(m.price??"")}"></label></div>
+  <h3>一份所需食材</h3><div class="tbl"><table><thead><tr><th>食材</th><th class="num">用量</th><th>單位</th><th class="num">成本</th><th></th></tr></thead><tbody id="ml_body"></tbody></table></div>
+  <div class="row between"><button class="btn" data-act="ml-add" ${S.ingredients.length?"":"disabled"}>加入食材</button><span class="small" id="ml_sum"></span></div>
+  <div class="row between">${m.id?`<button class="btn danger" data-act="menu-del" data-id="${m.id}">刪除餐點</button>`:"<span></span>"}<div class="row"><button class="btn" data-act="modal-close">取消</button><button class="btn primary" data-act="menu-save" data-id="${m.id||""}">儲存</button></div></div>`);
+  menuForm.lines=lines;menuForm.draw=draw;draw();}
+function expForm(){modal(`<h2>新增營業費用</h2><div class="form">
+  <label class="f">日期<input type="date" id="ex_date" value="${reportMonth===today().slice(0,7)?today():reportMonth+"-01"}"></label>
+  <label class="f">類別<select id="ex_cat">${EXP_CATS.map(c=>`<option>${c}</option>`).join("")}</select></label>
+  <label class="f">金額<input type="number" step="any" min="0" id="ex_amt" inputmode="decimal"></label>
+  <label class="f" style="grid-column:1/-1">說明<input id="ex_note" placeholder="例如：10 月房租、外場兼職薪資"></label></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="modal-close">取消</button><button class="btn primary" data-act="exp-save">新增</button></div>`);}
+
+/* ---------- events ---------- */
+const armed={};
+function confirmTwice(btn,key){if(armed[key]){delete armed[key];return true;}armed[key]=1;const t=btn.textContent;btn.textContent="再按一次確認";setTimeout(()=>{delete armed[key];if(btn.isConnected)btn.textContent=t;},3000);return false;}
+document.addEventListener("click",async ev=>{
+  const tb=ev.target.closest("[data-tab]");if(tb){tab=tb.dataset.tab;try{localStorage.setItem("hp_tab",tab)}catch(e){}closeModal();render();window.scrollTo(0,0);return;}
+  const el=ev.target.closest("[data-act]");if(!el)return;const act=el.dataset.act,id=el.dataset.id;
+  if(act==="modal-bg"){if(ev.target===el)closeModal();return;}
+  if(act==="modal-close")return closeModal();
+  if(act==="ing-new")return ingForm();
+  if(act==="ing-edit")return ingForm(ingById(id));
+  if(act==="ing-save"){const name=$("#ig_name").value.trim();if(!name)return toast("請填食材名稱");
+    const body={name,cat:$("#ig_cat").value.trim(),unit:$("#ig_unit").value.trim()||"單位",cost:n($("#ig_cost").value),safety:n($("#ig_safety").value),par:n($("#ig_par").value),supplier:$("#ig_sup").value.trim(),...meta()};
+    if(await w(()=>db.collection("ingredients").doc(id||undefined).set(body),"已儲存食材"))closeModal();return;}
+  if(act==="ing-del"){const used=S.menu.filter(m=>(m.lines||[]).some(l=>l.ingId===id));if(used.length)return toast("這項食材還在「"+used.map(m=>m.name).join("、")+"」的配方中，請先移除");
+    if(!confirmTwice(el,"ig"+id))return;if(await w(()=>db.doc("ingredients/"+id).delete(),"已刪除"))closeModal();return;}
+  if(act==="mv-add"){const type=$("#mv_type").value,q=n($("#mv_qty").value);if(q<=0)return toast("請填數量");
+    const body={type,date:$("#mv_date").value||today(),ingId:$("#mv_ing").value,qty:q,note:$("#mv_note").value.trim(),...meta()};
+    if(type==="in"){body.unitCost=n($("#mv_cost").value);body.expiry=$("#mv_exp").value||"";if(!body.unitCost&&isOwner())return toast("請填進貨單價");}
+    if(await w(()=>db.collection("movements").add(body),"已登記")){["mv_qty","mv_note","mv_cost","mv_exp"].forEach(k=>delete dirty[k]);$("#mv_qty").value="";$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";}return;}
+  if(act==="mv-del"){if(!confirmTwice(el,"mv"+id))return;await w(()=>db.doc("movements/"+id).delete(),"已刪除");return;}
+  if(act==="menu-new")return menuForm();
+  if(act==="menu-edit")return menuForm(menuById(id));
+  if(act==="ml-add"){menuForm.lines.push({ingId:S.ingredients[0].id,qty:0});menuForm.draw();return;}
+  if(act==="ml-del"){menuForm.lines.splice(+el.dataset.ix,1);menuForm.draw();return;}
+  if(act==="menu-save"){const name=$("#mn_name").value.trim();if(!name)return toast("請填餐點名稱");
+    const body={name,cat:$("#mn_cat").value.trim(),price:n($("#mn_price").value),lines:menuForm.lines.filter(l=>l.ingId&&n(l.qty)>0).map(l=>({ingId:l.ingId,qty:n(l.qty)})),...meta()};
+    if(await w(()=>db.collection("menu").doc(id||undefined).set(body),"已儲存餐點"))closeModal();return;}
+  if(act==="menu-del"){if(!confirmTwice(el,"mn"+id))return;if(await w(()=>db.doc("menu/"+id).delete(),"已刪除"))closeModal();return;}
+  if(act==="sl-save"){const items={},prices={};document.querySelectorAll(".slq").forEach(inp=>{const q=n(inp.value);if(q>0){items[inp.dataset.mid]=q;const m=menuById(inp.dataset.mid);prices[inp.dataset.mid]=m?n(m.price):0;}});
+    if(await w(()=>db.doc("sales/"+salesDate).set({date:salesDate,guests:n($("#sl_guests").value),other:n($("#sl_other").value),items,prices,...meta()}),"已儲存 "+salesDate+" 營收")){clearDirty("sl_");render();}return;}
+  if(act==="sl-del"){if(!confirmTwice(el,"sl"+salesDate))return;await w(()=>db.doc("sales/"+salesDate).delete(),"已刪除");return;}
+  if(act==="sl-open"){salesDate=el.dataset.date;clearDirty("sl_");render();window.scrollTo(0,0);return;}
+  if(act==="ct-save"){const lines=[];document.querySelectorAll(".ctq").forEach(inp=>{if(inp.value==="")return;const ing=inp.dataset.ing,exp=D.stock[ing]||0,c=n(inp.value);lines.push({ingId:ing,expected:Math.round(exp*1000)/1000,counted:c,adjust:Math.round((c-exp)*1000)/1000,cost:Math.round((D.cost[ing]||0)*100)/100});});
+    if(!lines.length)return toast("請至少填一項實盤量");if(await w(()=>db.collection("stocktakes").add({date:$("#ct_date").value||today(),lines,...meta()}),"已儲存盤點，庫存已校正")){clearDirty("ct_");render();}return;}
+  if(act==="ct-del"){if(!confirmTwice(el,"ct"+id))return;await w(()=>db.doc("stocktakes/"+id).delete(),"已刪除");return;}
+  if(act==="exp-new")return expForm();
+  if(act==="exp-save"){const amt=n($("#ex_amt").value);if(amt<=0)return toast("請填金額");if(await w(()=>db.collection("expenses").add({date:$("#ex_date").value||today(),cat:$("#ex_cat").value,amount:amt,note:$("#ex_note").value.trim(),...meta()}),"已新增費用"))closeModal();return;}
+  if(act==="exp-del"){if(!confirmTwice(el,"ex"+id))return;await w(()=>db.doc("expenses/"+id).delete(),"已刪除");return;}
+  if(act==="st-save"){if(await w(()=>db.doc("settings/main").set({shopName:$("#st_name").value.trim(),targetFoodCost:n($("#st_target").value)||38,...meta()}),"已儲存設定"))clearDirty("st_");return;}
+});
+document.addEventListener("change",ev=>{const t=ev.target;
+  if(t.id&&t.closest("#main")&&(t.tagName==="SELECT")&&t.id!=="mv_filter")dirty[t.id]=t.value;
+  if(t.id==="sl_date"){salesDate=t.value||today();clearDirty("sl_");render();}
+  else if(t.id==="rp_month"){reportMonth=t.value||today().slice(0,7);render();}
+  else if(t.id==="mv_filter"){moveFilter=t.value;render();}
+  else if(t.id==="mv_type"){const inT=t.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
+  else if(t.classList.contains("mli")){menuForm.lines[+t.dataset.ix].ingId=t.value;menuForm.draw();}
+});
+document.addEventListener("input",ev=>{const t=ev.target;
+  if(t.classList.contains("mlq")){menuForm.lines[+t.dataset.ix].qty=t.value;const ix=+t.dataset.ix;const l=menuForm.lines[ix];clearTimeout(menuForm.tm);menuForm.tm=setTimeout(()=>{const a=document.activeElement&&document.activeElement.id;menuForm.draw();if(a&&document.getElementById(a)){const e=document.getElementById(a);e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(_){}}},500);}
+  else if(t.id==="mn_price"&&menuForm.draw)menuForm.draw();
+  else if(t.classList.contains("ctq"))ctDiff(t);
+  if(t.id&&t.closest("#main")&&!["sl_date","rp_month","mv_filter"].includes(t.id))dirty[t.id]=t.value;
+});
+document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#modalRoot").innerHTML)closeModal();});
+
+/* ---------- backend (Google Apps Script) ---------- */
+const API_URL=(()=>{const u=String((window.HOTPOT_CONFIG&&window.HOTPOT_CONFIG.apiUrl)||"").trim();return /^https:\/\/script\.google\.com\//.test(u)?u:"";})();
+const LS={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+function setStatus(s){$("#status").textContent=s;}
+async function api(action,payload){
+  if(!API_URL)throw Object.assign(new Error("尚未設定後端網址（config.js）"),{code:"config"});
+  let r;
+  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(Object.assign({action,pin},payload||{})),redirect:"follow"});}
+  catch(e){throw Object.assign(new Error("連不上伺服器，請檢查網路"),{code:"network"});}
+  let j;try{j=await r.json();}catch(e){throw Object.assign(new Error("伺服器回應異常"),{code:"server"});}
+  if(!j.ok)throw Object.assign(new Error(j.error||"操作失敗"),{code:j.code});
+  return j;
+}
+const genId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+function sortCol(c){if(c==="ingredients"||c==="menu")S[c].sort((a,b)=>(a.order??999)-(b.order??999)||String(a.name).localeCompare(String(b.name),"zh-Hant"));}
+function applyLocal(col,id,doc){
+  if(col==="settings"){S.settings={...S.settings,...doc};}
+  else{const list=S[col];const ix=list.findIndex(d=>d.id===id);const d={...doc,id};if(ix>=0)list[ix]=d;else list.push(d);sortCol(col);}
+  cacheSave();schedule();
+}
+function removeLocal(col,id){if(S[col]){S[col]=S[col].filter(d=>d.id!==id);}cacheSave();schedule();}
+function docRef(col,id){return{
+  async set(body){id=id||genId();const j=await api("put",{col,id,doc:body});applyLocal(col,id,j.doc||body);},
+  async delete(){await api("del",{col,id});removeLocal(col,id);}
+};}
+db={collection:c=>({doc:id=>docRef(c,id),add:body=>docRef(c,null).set(body)}),doc:p=>{const[c,id]=p.split("/");return docRef(c,id);}};
+
+function applyAll(data){
+  for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes"]){S[c]=(data[c]||[]).map(d=>({...d}));sortCol(c);}
+  const st=(data.settings||[]).find(d=>d.id==="main");S.settings={shopName:"",targetFoodCost:38,...(st||{})};
+}
+function cacheSave(){LS.set("hp_cache",JSON.stringify({role,S,at:Date.now()}));}
+function cacheLoad(){try{const c=JSON.parse(LS.get("hp_cache")||"null");if(c&&c.role===role&&c.S){Object.assign(S,c.S);return c.at;}}catch(e){}return 0;}
+
+let loading=false,lastSync=0;
+async function refresh(quiet){
+  if(loading||!role)return;loading=true;
+  try{const j=await api("load");if(j.role!==role){role=j.role;LS.set("hp_role",role);}applyAll(j.data);lastSync=Date.now();cacheSave();ready=true;setStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));$("#offline").hidden=true;schedule();}
+  catch(e){
+    if(e.code==="bad_pin"){logout("密碼已變更，請重新登入");}
+    else{setStatus(e.code==="network"?"離線":"同步失敗");if(e.code==="network")$("#offline").hidden=false;else if(!quiet)toast(e.message);if(ready)schedule();}
+  }finally{loading=false;}
+}
+function logout(msg){role=null;pin="";ready=false;LS.del("hp_pin");LS.del("hp_role");LS.del("hp_cache");for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes"])S[c]=[];closeModal();render();if(msg)toast(msg);}
+
+function renderLogin(){
+  $("#roleTag").hidden=true;$("#logoutBtn").hidden=true;$("#nav").innerHTML="";setStatus("");
+  $("#main").innerHTML=`<form class="login" id="loginForm" autocomplete="off">
+    <h1>${esc(S.settings.shopName||"鍋物庫存")}</h1>
+    <p class="muted" style="margin:0">請輸入店內密碼。員工密碼可登記進貨、報廢、營收與盤點；老闆密碼可看全部報表。</p>
+    <label class="f">密碼<input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit" id="loginBtn">進入</button>
+    ${API_URL?"":`<p class="small" style="color:var(--bad);margin:0">還沒設定後端網址：請在 config.js 填入 Google Apps Script 的部署網址。</p>`}
+    <p class="small muted" style="margin:0">手機上可以把這個頁面「加到主畫面」，之後就像 App 一樣直接打開。</p>
+  </form>`;
+  const f=$("#pinInput");if(f)setTimeout(()=>f.focus(),50);
+}
+document.addEventListener("submit",async ev=>{
+  if(ev.target.id!=="loginForm")return;ev.preventDefault();
+  const btn=$("#loginBtn");const val=$("#pinInput").value.trim();if(!val)return;
+  btn.disabled=true;btn.textContent="驗證中…";pin=val;
+  try{const j=await api("login");role=j.role;LS.set("hp_pin",pin);LS.set("hp_role",role);tab="overview";enter();}
+  catch(e){pin="";btn.disabled=false;btn.textContent="進入";toast(e.code==="bad_pin"?"密碼錯誤":e.message);}
+});
+function enter(){
+  $("#roleTag").hidden=false;$("#roleTag").textContent=isOwner()?"老闆":"員工";$("#logoutBtn").hidden=false;
+  const at=cacheLoad();if(at){ready=true;}
+  if(!ready)$("#main").innerHTML='<div class="empty">正在載入資料…</div>';
+  render();refresh();
+}
+document.addEventListener("click",ev=>{const el=ev.target.closest('[data-act="logout"]');if(!el)return;ev.stopImmediatePropagation();if(confirmTwice(el,"logout"))logout("已登出");},true);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&role&&Date.now()-lastSync>20000)refresh(true);});
+window.addEventListener("online",()=>{if(role)refresh(true);});
+window.addEventListener("offline",()=>{$("#offline").hidden=false;setStatus("離線");});
+setInterval(()=>{if(document.visibilityState==="visible"&&role&&!$("#modalRoot").innerHTML)refresh(true);},60000);
+if("serviceWorker" in navigator&&location.protocol==="https:"){navigator.serviceWorker.register("sw.js").catch(()=>{});}
+
+function boot(){
+  pin=LS.get("hp_pin")||"";role=pin?LS.get("hp_role"):null;
+  if(role)enter();else render();
+}
+boot();
+})();
+</script>
+
+</body>
+</html>
