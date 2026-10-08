@@ -134,7 +134,7 @@ const TABS=[["overview","總覽"],["stock","庫存"],["moves","進貨・報廢"]
 const EXP_CATS=["人事","租金","水電瓦斯","耗材包材","行銷廣告","平台抽成","其他"];
 const S={ingredients:[],movements:[],menu:[],sales:[],expenses:[],stocktakes:[],settings:{shopName:"",targetFoodCost:38}};
 let db=null,me=null,tab="overview",canWrite=true,ready=false,role=null,pin="";
-const OWNER_TABS=TABS.map(t=>t[0]),STAFF_TABS=["overview","stock","moves","sales","count"];
+const OWNER_TABS=TABS.map(t=>t[0]),STAFF_TABS=["overview","stock","moves","count"];
 const isOwner=()=>role==="owner";
 const tabs=()=>TABS.filter(t=>(isOwner()?OWNER_TABS:STAFF_TABS).includes(t[0]));
 try{const h=(location.hash||"").slice(1);if(TABS.some(t=>t[0]===h))tab=h;else{const s=localStorage.getItem("hp_tab");if(s&&TABS.some(t=>t[0]===s))tab=s;}}catch(e){}
@@ -195,7 +195,7 @@ async function w(fn,ok){if(!db){toast("尚未連上資料庫");return false;}try
 const meta=()=>({by:me||"",at:new Date().toISOString()});
 
 /* ---------- render ---------- */
-let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render();});}
+let raf=0;function schedule(){if(raf)return;raf=setTimeout(()=>{raf=0;render();},16);}
 function renderNav(){if(!role){$("#nav").innerHTML="";return;}if(!tabs().some(t=>t[0]===tab))tab="overview";$("#nav").innerHTML=tabs().map(([k,l])=>`<button role="tab" id="t_${k}" aria-selected="${k===tab}" data-tab="${k}">${l}</button>`).join("");}
 function render(){
   if(!role){renderLogin();return;}
@@ -293,13 +293,14 @@ function moves(){
     <label class="f" id="mv_cost_w">進貨單價（每單位${isOwner()?"":"，不知道可空白"}）<input type="number" step="any" min="0" id="mv_cost" inputmode="decimal"></label>
     <label class="f" id="mv_exp_w">到期日（選填）<input type="date" id="mv_exp"></label>
     <label class="f">備註<input id="mv_note" placeholder="供應商、單號、原因"></label>
-    <button class="btn primary" data-act="mv-add">登記</button></div>
+    <label class="f">照片（選填，例如送貨單、發票）<input type="file" id="mv_photo" accept="image/*"><span class="small" id="mv_photo_name">${pendingPhoto?"已選："+esc(pendingPhoto.name):""}</span></label>
+    <button class="btn primary" data-act="mv-add" id="mv_add_btn">登記</button></div>
     <p class="small muted" style="margin:0" id="mv_hint"></p>`:`<div class="empty">請先到「庫存」建立食材。</div>`}
   </div>
   <div class="panel"><div class="row between"><h3>紀錄</h3><select id="mv_filter" style="width:auto"><option value="all"${moveFilter==="all"?" selected":""}>全部</option><option value="in"${moveFilter==="in"?" selected":""}>進貨</option><option value="waste"${moveFilter==="waste"?" selected":""}>報廢</option><option value="out"${moveFilter==="out"?" selected":""}>領用</option></select></div>
   ${list.length?`<div class="tbl"><table><thead><tr><th>日期</th><th>類型</th><th>食材</th><th class="num">數量</th>${isOwner()?`<th class="num">金額</th>`:""}<th>到期日</th><th>備註</th><th></th></tr></thead><tbody>
   ${list.map(m=>{const i=ingById(m.ingId);const amt=m.type==="in"?n(m.qty)*n(m.unitCost):n(m.qty)*(D.cost[m.ingId]||0);const[l,c]=TL[m.type]||["?","p-mute"];
-   return `<tr><td class="small">${esc(m.date)}</td><td><span class="pill ${c}">${l}</span></td><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(m.qty))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(amt)}</td>`:""}<td class="small">${esc(m.expiry||"")}</td><td class="small muted">${esc(m.note||"")}</td><td><button class="link danger" data-act="mv-del" data-id="${m.id}">刪除</button></td></tr>`}).join("")}
+   return `<tr><td class="small">${esc(m.date)}</td><td><span class="pill ${c}">${l}</span></td><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(m.qty))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(amt)}</td>`:""}<td class="small">${esc(m.expiry||"")}</td><td class="small muted">${esc(m.note||"")}${m.photoUrl&&/^https:\/\/drive\.google\.com\//.test(m.photoUrl)?` <a href="${esc(m.photoUrl)}" target="_blank" rel="noopener">看照片</a>`:""}</td><td><button class="link danger" data-act="mv-del" data-id="${m.id}">刪除</button></td></tr>`}).join("")}
   </tbody></table></div>`:`<div class="empty">還沒有紀錄。第一筆建議登記「期初庫存」：把現場每樣食材目前的量當作一筆進貨。</div>`}</div>`;
 }
 
@@ -449,7 +450,11 @@ document.addEventListener("click",async ev=>{
   if(act==="mv-add"){const type=$("#mv_type").value,q=n($("#mv_qty").value);if(q<=0)return toast("請填數量");
     const body={type,date:$("#mv_date").value||today(),ingId:$("#mv_ing").value,qty:q,note:$("#mv_note").value.trim(),...meta()};
     if(type==="in"){body.unitCost=n($("#mv_cost").value);body.expiry=$("#mv_exp").value||"";if(!body.unitCost&&isOwner())return toast("請填進貨單價");}
-    if(await w(()=>db.collection("movements").add(body),"已登記")){["mv_qty","mv_note","mv_cost","mv_exp"].forEach(k=>delete dirty[k]);$("#mv_qty").value="";$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";}return;}
+    const btn=$("#mv_add_btn");
+    if(pendingPhoto){try{btn.disabled=true;btn.textContent="處理照片中…";body.photoData=await shrinkPhoto(pendingPhoto);}catch(e){btn.disabled=false;btn.textContent="登記";return toast("照片讀取失敗，請換一張再試");}btn.textContent="上傳中…";}
+    const ok=await w(()=>db.collection("movements").add(body),"已登記");
+    const b2=$("#mv_add_btn");if(b2){b2.disabled=false;b2.textContent="登記";}
+    if(ok){pendingPhoto=null;["mv_qty","mv_note","mv_cost","mv_exp"].forEach(k=>delete dirty[k]);if($("#mv_qty"))$("#mv_qty").value="";if($("#mv_note"))$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";if($("#mv_photo"))$("#mv_photo").value="";if($("#mv_photo_name"))$("#mv_photo_name").textContent="";}return;}
   if(act==="mv-del"){if(!confirmTwice(el,"mv"+id))return;await w(()=>db.doc("movements/"+id).delete(),"已刪除");return;}
   if(act==="menu-new")return menuForm();
   if(act==="menu-edit")return menuForm(menuById(id));
@@ -476,6 +481,7 @@ document.addEventListener("change",ev=>{const t=ev.target;
   if(t.id==="sl_date"){salesDate=t.value||today();clearDirty("sl_");render();}
   else if(t.id==="rp_month"){reportMonth=t.value||today().slice(0,7);render();}
   else if(t.id==="mv_filter"){moveFilter=t.value;render();}
+  else if(t.id==="mv_photo"){pendingPhoto=t.files&&t.files[0]||null;const nm=$("#mv_photo_name");if(nm)nm.textContent=pendingPhoto?"已選："+pendingPhoto.name:"";}
   else if(t.id==="mv_type"){const inT=t.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
   else if(t.classList.contains("mli")){menuForm.lines[+t.dataset.ix].ingId=t.value;menuForm.draw();}
 });
@@ -483,9 +489,17 @@ document.addEventListener("input",ev=>{const t=ev.target;
   if(t.classList.contains("mlq")){menuForm.lines[+t.dataset.ix].qty=t.value;const ix=+t.dataset.ix;const l=menuForm.lines[ix];clearTimeout(menuForm.tm);menuForm.tm=setTimeout(()=>{const a=document.activeElement&&document.activeElement.id;menuForm.draw();if(a&&document.getElementById(a)){const e=document.getElementById(a);e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(_){}}},500);}
   else if(t.id==="mn_price"&&menuForm.draw)menuForm.draw();
   else if(t.classList.contains("ctq"))ctDiff(t);
-  if(t.id&&t.closest("#main")&&!["sl_date","rp_month","mv_filter"].includes(t.id))dirty[t.id]=t.value;
+  if(t.id&&t.closest("#main")&&t.type!=="file"&&!["sl_date","rp_month","mv_filter"].includes(t.id))dirty[t.id]=t.value;
 });
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#modalRoot").innerHTML)closeModal();});
+
+/* ---------- photo ---------- */
+let pendingPhoto=null;
+function shrinkPhoto(file){return new Promise((res,rej)=>{
+  const url=URL.createObjectURL(file);const img=new Image();
+  img.onload=()=>{try{const max=1400;let w=img.naturalWidth,h=img.naturalHeight;const k=Math.min(1,max/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
+    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",0.72));}catch(e){rej(e);}};
+  img.onerror=e=>{URL.revokeObjectURL(url);rej(e);};img.src=url;});}
 
 /* ---------- backend (Google Apps Script) ---------- */
 const API_URL=(()=>{const u=String((window.HOTPOT_CONFIG&&window.HOTPOT_CONFIG.apiUrl)||"").trim();return /^https:\/\/script\.google\.com\//.test(u)?u:"";})();
@@ -494,8 +508,10 @@ function setStatus(s){$("#status").textContent=s;}
 async function api(action,payload){
   if(!API_URL)throw Object.assign(new Error("尚未設定後端網址（config.js）"),{code:"config"});
   let r;
-  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(Object.assign({action,pin},payload||{})),redirect:"follow"});}
-  catch(e){throw Object.assign(new Error("連不上伺服器，請檢查網路"),{code:"network"});}
+  const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),action==="put"&&payload&&payload.doc&&payload.doc.photoData?90000:40000);
+  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(Object.assign({action,pin},payload||{})),redirect:"follow",signal:ctl.signal});}
+  catch(e){throw Object.assign(new Error(e&&e.name==="AbortError"?"伺服器回應太久，請再試一次":"連不上伺服器，請檢查網路"),{code:"network"});}
+  finally{clearTimeout(timer);}
   let j;try{j=await r.json();}catch(e){throw Object.assign(new Error("伺服器回應異常"),{code:"server"});}
   if(!j.ok)throw Object.assign(new Error(j.error||"操作失敗"),{code:j.code});
   return j;
@@ -524,7 +540,7 @@ function cacheLoad(){try{const c=JSON.parse(LS.get("hp_cache")||"null");if(c&&c.
 let loading=false,lastSync=0;
 async function refresh(quiet){
   if(loading||!role)return;loading=true;
-  try{const j=await api("load");if(j.role!==role){role=j.role;LS.set("hp_role",role);}applyAll(j.data);lastSync=Date.now();cacheSave();ready=true;setStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));$("#offline").hidden=true;schedule();}
+  try{const j=await api("load");if((j.role==="owner"||j.role==="staff")&&j.role!==role){role=j.role;LS.set("hp_role",role);}applyAll(j.data);lastSync=Date.now();cacheSave();ready=true;setStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));$("#offline").hidden=true;schedule();}
   catch(e){
     if(e.code==="bad_pin"){logout("密碼已變更，請重新登入");}
     else{setStatus(e.code==="network"?"離線":"同步失敗");if(e.code==="network")$("#offline").hidden=false;else if(!quiet)toast(e.message);if(ready)schedule();}
@@ -547,14 +563,14 @@ function renderLogin(){
 document.addEventListener("submit",async ev=>{
   if(ev.target.id!=="loginForm")return;ev.preventDefault();
   const btn=$("#loginBtn");const val=$("#pinInput").value.trim();if(!val)return;
-  btn.disabled=true;btn.textContent="驗證中…";pin=val;
-  try{const j=await api("login");role=j.role;LS.set("hp_pin",pin);LS.set("hp_role",role);tab="overview";enter();}
+  btn.disabled=true;btn.textContent="驗證中…第一次可能要 10 秒";pin=val;
+  try{const j=await api("login");if(j.role!=="owner"&&j.role!=="staff")throw new Error("伺服器版本不符，請老闆重新部署後端");role=j.role;LS.set("hp_pin",pin);LS.set("hp_role",role);tab="overview";enter();}
   catch(e){pin="";btn.disabled=false;btn.textContent="進入";toast(e.code==="bad_pin"?"密碼錯誤":e.message);}
 });
 function enter(){
   $("#roleTag").hidden=false;$("#roleTag").textContent=isOwner()?"老闆":"員工";$("#logoutBtn").hidden=false;
   const at=cacheLoad();if(at){ready=true;}
-  if(!ready)$("#main").innerHTML='<div class="empty">正在載入資料…</div>';
+  if(!ready)$("#main").innerHTML='<div class="empty">正在載入資料…（第一次開啟可能要 10 秒）</div>';
   render();refresh();
 }
 document.addEventListener("click",ev=>{const el=ev.target.closest('[data-act="logout"]');if(!el)return;ev.stopImmediatePropagation();if(confirmTwice(el,"logout"))logout("已登出");},true);
