@@ -139,8 +139,8 @@ img{max-width:100%}
 "use strict";
 const TABS=[["overview","總覽"],["stock","庫存"],["moves","進貨・報廢"],["menu","菜單成本"],["sales","每日營收"],["count","盤點"],["report","損益報表"],["settings","設定"]];
 const EXP_CATS=["人事","租金","水電瓦斯","耗材包材","行銷廣告","平台抽成","其他"];
-const S={ingredients:[],movements:[],menu:[],sales:[],expenses:[],stocktakes:[],settings:{shopName:"",targetFoodCost:38}};
-let db=null,me=null,tab="overview",canWrite=true,ready=false,role=null,pin="";
+const S={ingredients:[],movements:[],menu:[],sales:[],expenses:[],stocktakes:[],staff:[],settings:{shopName:"",targetFoodCost:38}};
+let myName="",db=null,me=null,tab="overview",canWrite=true,ready=false,role=null,pin="";
 const OWNER_TABS=TABS.map(t=>t[0]),STAFF_TABS=["overview","stock","moves","count"];
 const isOwner=()=>role==="owner";
 const tabs=()=>TABS.filter(t=>(isOwner()?OWNER_TABS:STAFF_TABS).includes(t[0]));
@@ -215,7 +215,7 @@ function render(){
   $("#main").innerHTML=`<section class="tab">${R()}</section>`;
   for(const [k,v] of Object.entries(dirty)){const el=document.getElementById(k);if(el)el.value=v;}
   updMvInfo();
-  const mt=$("#mv_type");if(mt){const inT=mt.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
+  const mt=$("#mv_type");if(mt){const inT=mt.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;$("#mv_cnt_w").hidden=!inT;}
   document.querySelectorAll(".ctq").forEach(ctDiff);
   if(active){const el=document.getElementById(active);if(el&&el.tagName!=="BUTTON")el.focus();}
 }
@@ -301,6 +301,7 @@ function moves(){
     <p class="small" id="mv_stock_info" style="margin:0;grid-column:1/-1;color:var(--muted)"></p>
     <label class="f">數量<input type="number" step="any" min="0" id="mv_qty" inputmode="decimal"></label>
     <label class="f" id="mv_cost_w">進貨單價（每單位${isOwner()?"":"，不知道可空白"}）<input type="number" step="any" min="0" id="mv_cost" inputmode="decimal"></label>
+    <label class="f" id="mv_cnt_w">盤點：進貨前現場還剩多少<input type="number" step="any" min="0" id="mv_cnt" inputmode="decimal" placeholder="點一下現場數量"></label>
     <label class="f" id="mv_exp_w">到期日（選填）<input type="date" id="mv_exp"></label>
     <label class="f">備註<input id="mv_note" placeholder="供應商、單號、原因"></label>
     <label class="f">拍照（選填，例如送貨單、發票）<input type="file" id="mv_photo" accept="image/*" capture="environment"><span class="small" id="mv_photo_name">${pendingPhoto?"已選："+esc(pendingPhoto.name):""}</span></label>
@@ -308,9 +309,9 @@ function moves(){
     <p class="small muted" style="margin:0" id="mv_hint"></p>`:`<div class="empty">請先到「庫存」建立食材。</div>`}
   </div>
   <div class="panel"><div class="row between"><h3>紀錄</h3><select id="mv_filter" style="width:auto"><option value="all"${moveFilter==="all"?" selected":""}>全部</option><option value="in"${moveFilter==="in"?" selected":""}>進貨</option><option value="waste"${moveFilter==="waste"?" selected":""}>報廢</option><option value="out"${moveFilter==="out"?" selected":""}>領用</option></select></div>
-  ${list.length?`<div class="tbl"><table><thead><tr><th>日期</th><th>類型</th><th>食材</th><th class="num">數量</th>${isOwner()?`<th class="num">金額</th>`:""}<th>到期日</th><th>備註</th><th></th></tr></thead><tbody>
+  ${list.length?`<div class="tbl"><table><thead><tr><th>日期</th><th>類型</th><th>食材</th><th class="num">數量</th>${isOwner()?`<th class="num">金額</th>`:""}<th>到期日</th><th>登記人</th><th>備註</th><th></th></tr></thead><tbody>
   ${list.map(m=>{const i=ingById(m.ingId);const amt=m.type==="in"?n(m.qty)*n(m.unitCost):n(m.qty)*(D.cost[m.ingId]||0);const[l,c]=TL[m.type]||["?","p-mute"];
-   return `<tr><td class="small">${esc(m.date)}</td><td><span class="pill ${c}">${l}</span></td><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(m.qty))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(amt)}</td>`:""}<td class="small">${esc(m.expiry||"")}</td><td class="small muted">${esc(m.note||"")}${m.photoUrl&&/^https:\/\/drive\.google\.com\//.test(m.photoUrl)?` <a href="${esc(m.photoUrl)}" target="_blank" rel="noopener">看照片</a>`:""}</td><td><button class="link danger" data-act="mv-del" data-id="${m.id}">刪除</button></td></tr>`}).join("")}
+   return `<tr><td class="small">${esc(m.date)}</td><td><span class="pill ${c}">${l}</span></td><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(m.qty))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(amt)}</td>`:""}<td class="small">${esc(m.expiry||"")}</td><td class="small">${esc(whoOf(m))}</td><td class="small muted">${esc(m.note||"")}${m.photoUrl&&/^https:\/\/drive\.google\.com\//.test(m.photoUrl)?` <a href="${esc(m.photoUrl)}" target="_blank" rel="noopener">看照片</a>`:""}</td><td><button class="link danger" data-act="mv-del" data-id="${m.id}">刪除</button></td></tr>`}).join("")}
   </tbody></table></div>`:`<div class="empty">還沒有紀錄。第一筆建議登記「期初庫存」：把現場每樣食材目前的量當作一筆進貨。</div>`}</div>`;
 }
 
@@ -354,7 +355,7 @@ function count(){
   </tbody></table></div><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="ct-save">儲存盤點結果</button></div>`:`<div class="empty">請先建立食材。</div>`}</div>
   <div class="panel"><h3>盤點紀錄</h3>
   ${last.length?last.map(st=>{let loss=0;const rows=(st.lines||[]).filter(l=>Math.abs(n(l.adjust))>1e-9).sort((a,b)=>n(a.adjust)*n(a.cost)-n(b.adjust)*n(b.cost));for(const l of st.lines||[])loss+=-n(l.adjust)*n(l.cost);
-   return `<details><summary class="row between" style="cursor:pointer;padding:6px 0"><span>${esc(st.date)}・盤點 ${(st.lines||[]).length} 項</span>${isOwner()?`<span class="pill ${loss>0?"p-bad":"p-good"}">${loss>0?"盤損 ":"盤盈 "}${money(Math.abs(loss))}</span>`:""}</summary>
+   return `<details><summary class="row between" style="cursor:pointer;padding:6px 0"><span>${esc(st.date)}・盤點 ${(st.lines||[]).length} 項${whoOf(st)?"・"+esc(whoOf(st)):""}</span>${isOwner()?`<span class="pill ${loss>0?"p-bad":"p-good"}">${loss>0?"盤損 ":"盤盈 "}${money(Math.abs(loss))}</span>`:""}</summary>
    ${rows.length?`<div class="tbl"><table><thead><tr><th>食材</th><th class="num">系統</th><th class="num">實盤</th><th class="num">差異</th>${isOwner()?`<th class="num">金額</th>`:""}</tr></thead><tbody>${rows.map(l=>{const i=ingById(l.ingId);return `<tr><td>${esc(i?i.name:"(已刪除)")}</td><td class="num">${qty(n(l.expected))}</td><td class="num">${qty(n(l.counted))}</td><td class="num">${n(l.adjust)>0?"+":""}${qty(n(l.adjust))} ${esc(i?i.unit:"")}</td>${isOwner()?`<td class="num">${money(n(l.adjust)*n(l.cost))}</td>`:""}</tr>`}).join("")}</tbody></table></div>`:`<p class="small muted">這次盤點完全吻合。</p>`}
    <div class="row" style="justify-content:flex-end"><button class="link danger" data-act="ct-del" data-id="${st.id}">刪除這次盤點</button></div></details>`}).join(""):`<div class="empty">還沒有盤點紀錄。建議每週盤一次肉品與海鮮等高單價食材。</div>`}</div>`;
 }
@@ -404,7 +405,11 @@ function settings(){
    <label class="f">目標食材成本率（%）<input type="number" step="any" min="0" max="100" id="st_target" value="${esc(S.settings.targetFoodCost||38)}"></label>
    <button class="btn primary" data-act="st-save">儲存設定</button></div>
    <p class="small muted" style="margin:0">火鍋與燒烤業的食材成本率一般落在 35%～45%，吃到飽型態通常更高。請依你們的定價策略設定。</p></div>
-   <div class="panel"><h3>密碼與員工</h3><p class="small muted" style="margin:0">員工密碼只能登記進貨、報廢、營收與盤點，看不到成本、菜單成本與損益報表。要更換密碼，請到 Google 試算表的「擴充功能 → Apps Script」修改最上面兩行，再按「部署 → 管理部署作業 → 編輯 → 新版本 → 部署」。換了密碼後，大家都要用新密碼重新登入。</p></div>
+   <div class="panel"><div class="row between"><h3>員工帳號</h3><span class="small muted">${S.staff.filter(x=>x.active!==false).length} 位使用中</span></div>
+   <p class="small muted" style="margin:0">每位員工用自己的密碼登入，進貨、報廢和盤點都會記下是誰登記的。員工看不到成本、菜單成本與損益報表。離職的員工按「停用」即可，過去的紀錄會保留。</p>
+   ${S.staff.length?`<div class="tbl"><table><thead><tr><th>姓名</th><th>密碼</th><th>狀態</th><th></th></tr></thead><tbody>${[...S.staff].sort((a,b)=>String(a.name).localeCompare(String(b.name),"zh-Hant")).map(x=>`<tr><td>${esc(x.name)}</td><td class="num" style="text-align:left">${esc(x.pin)}</td><td><span class="pill ${x.active!==false?"p-good":"p-mute"}">${x.active!==false?"使用中":"已停用"}</span></td><td style="white-space:nowrap"><button class="link" data-act="sf-toggle" data-id="${x.id}">${x.active!==false?"停用":"啟用"}</button><button class="link danger" data-act="sf-del" data-id="${x.id}">刪除</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">還沒有員工帳號。在下面新增第一位。</div>`}
+   <div class="form"><label class="f">員工姓名<input id="sf_name" placeholder="例如：王小明"></label><label class="f">登入密碼（4～8 位數字或英文）<input id="sf_pin" inputmode="numeric" autocomplete="off" placeholder="例如：2580"></label><button class="btn primary" data-act="sf-add">新增員工</button></div>
+   <p class="small muted" style="margin:0">老闆密碼和舊的「共用員工密碼」仍設定在 Apps Script 最上面兩行。每位員工都有自己的帳號後，建議把共用密碼改成空白（<code>const STAFF_PIN = '';</code>）並重新部署，避免離職員工繼續登入。</p></div>
    <div class="panel"><h3>原始資料</h3><p class="small muted" style="margin:0">所有資料都存在你的 Google 試算表中，每個分頁是一類資料。不建議直接在試算表裡改內容，請用這個 App 操作。想備份時，在試算表選「檔案 → 建立副本」即可。</p></div></div>`;
 }
 
@@ -462,7 +467,8 @@ document.addEventListener("click",async ev=>{
     const docs=scan.rows.filter(r=>r.ingId&&n(r.qty)>0).map(r=>({id:genId(),doc:{type:"in",date,ingId:r.ingId,qty:n(r.qty),unitCost:n(r.unitCost),expiry:"",note:"單據辨識"+(scan.supplier?"・"+scan.supplier:"")+(r.rawName?"（"+r.rawName+"）":""),photoId:scan.photoId||"",...meta()}}));
     if(!docs.length)return toast("沒有可寫入的品項，請先選擇對應的食材");
     el.disabled=true;el.textContent="寫入中…";
-    try{const j=await api("putMany",{col:"movements",docs});for(const x of j.saved||[])applyLocal("movements",x.id,x.doc);scan=null;clearDirty("sc_");render();toast("已寫入 "+(j.saved||[]).length+" 筆進貨，庫存已更新");}
+    try{await saveCount(countLines(scan.rows.filter(r=>r.ingId&&n(r.qty)>0).map(r=>({ingId:r.ingId,counted:r.counted}))),date,"進貨時盤點（單據辨識）");
+      const j=await api("putMany",{col:"movements",docs});for(const x of j.saved||[])applyLocal("movements",x.id,x.doc);scan=null;clearDirty("sc_");render();toast("已寫入 "+(j.saved||[]).length+" 筆進貨"+(scan&&false?"":"")+"，庫存已更新");}
     catch(e){el.disabled=false;el.textContent="確認寫入";toast(e.code==="permission_denied"?"員工密碼不能做這件事":"寫入失敗："+e.message);}
     return;}
   if(act==="mv-add"){const type=$("#mv_type").value,q=n($("#mv_qty").value);if(q<=0)return toast("請填數量");
@@ -470,9 +476,11 @@ document.addEventListener("click",async ev=>{
     if(type==="in"){body.unitCost=n($("#mv_cost").value);body.expiry=$("#mv_exp").value||"";if(!body.unitCost&&isOwner())return toast("請填進貨單價");}
     const btn=$("#mv_add_btn");
     if(pendingPhoto){try{btn.disabled=true;btn.textContent="處理照片中…";body.photoData=await shrinkPhoto(pendingPhoto);}catch(e){btn.disabled=false;btn.textContent="登記";return toast("照片讀取失敗，請換一張再試");}btn.textContent="上傳中…";}
-    const ok=await w(()=>db.collection("movements").add(body),"已登記");
+    const cv=type==="in"&&$("#mv_cnt")?$("#mv_cnt").value:"";
+    if(cv!==""){const okc=await w(()=>saveCount(countLines([{ingId:body.ingId,counted:cv}]),body.date,"進貨時盤點"));if(!okc){if(btn){btn.disabled=false;btn.textContent="登記";}return;}}
+    const ok=await w(()=>db.collection("movements").add(body),cv!==""?"已登記盤點與進貨":"已登記");
     const b2=$("#mv_add_btn");if(b2){b2.disabled=false;b2.textContent="登記";}
-    if(ok){pendingPhoto=null;["mv_qty","mv_note","mv_cost","mv_exp"].forEach(k=>delete dirty[k]);if($("#mv_qty"))$("#mv_qty").value="";if($("#mv_note"))$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";if($("#mv_photo"))$("#mv_photo").value="";if($("#mv_photo_name"))$("#mv_photo_name").textContent="";}return;}
+    if(ok){pendingPhoto=null;if($("#mv_cnt"))$("#mv_cnt").value="";["mv_qty","mv_note","mv_cost","mv_exp","mv_cnt"].forEach(k=>delete dirty[k]);if($("#mv_qty"))$("#mv_qty").value="";if($("#mv_note"))$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";if($("#mv_photo"))$("#mv_photo").value="";if($("#mv_photo_name"))$("#mv_photo_name").textContent="";}return;}
   if(act==="mv-del"){if(!confirmTwice(el,"mv"+id))return;await w(()=>db.doc("movements/"+id).delete(),"已刪除");return;}
   if(act==="menu-new")return menuForm();
   if(act==="menu-edit")return menuForm(menuById(id));
@@ -492,6 +500,10 @@ document.addEventListener("click",async ev=>{
   if(act==="exp-new")return expForm();
   if(act==="exp-save"){const amt=n($("#ex_amt").value);if(amt<=0)return toast("請填金額");if(await w(()=>db.collection("expenses").add({date:$("#ex_date").value||today(),cat:$("#ex_cat").value,amount:amt,note:$("#ex_note").value.trim(),...meta()}),"已新增費用"))closeModal();return;}
   if(act==="exp-del"){if(!confirmTwice(el,"ex"+id))return;await w(()=>db.doc("expenses/"+id).delete(),"已刪除");return;}
+  if(act==="sf-add"){const name=$("#sf_name").value.trim(),pinv=$("#sf_pin").value.trim();if(!name)return toast("請填員工姓名");if(!/^[A-Za-z0-9]{4,8}$/.test(pinv))return toast("密碼請用 4～8 位數字或英文");
+    if(await w(()=>db.collection("staff").add({name,pin:pinv,active:true,...meta()}),"已新增員工「"+name+"」")){clearDirty("sf_");$("#sf_name").value="";$("#sf_pin").value="";}return;}
+  if(act==="sf-toggle"){const x=S.staff.find(y=>y.id===id);if(!x)return;await w(()=>db.doc("staff/"+id).set({name:x.name,pin:x.pin,active:x.active===false}),x.active===false?"已啟用":"已停用，該員工無法再登入");return;}
+  if(act==="sf-del"){if(!confirmTwice(el,"sf"+id))return;await w(()=>db.doc("staff/"+id).delete(),"已刪除員工帳號");return;}
   if(act==="st-save"){if(await w(()=>db.doc("settings/main").set({shopName:$("#st_name").value.trim(),targetFoodCost:n($("#st_target").value)||38,...meta()}),"已儲存設定"))clearDirty("st_");return;}
 });
 document.addEventListener("change",ev=>{const t=ev.target;
@@ -504,11 +516,11 @@ document.addEventListener("change",ev=>{const t=ev.target;
   else if(t.classList.contains("scsel")){const r=scan&&scan.rows&&scan.rows[+t.dataset.k];if(r){r.ingId=t.value;r.unitOk=true;render();}}
   else if(t.id==="sc_date"){if(scan)scan.date=t.value;}
   else if(t.id==="mv_photo"){pendingPhoto=t.files&&t.files[0]||null;const nm=$("#mv_photo_name");if(nm)nm.textContent=pendingPhoto?"已選："+pendingPhoto.name:"";}
-  else if(t.id==="mv_type"){updMvInfo();const inT=t.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
+  else if(t.id==="mv_type"){updMvInfo();const inT=t.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;$("#mv_cnt_w").hidden=!inT;}
   else if(t.classList.contains("mli")){menuForm.lines[+t.dataset.ix].ingId=t.value;menuForm.draw();}
 });
 document.addEventListener("input",ev=>{const t=ev.target;
-  if(t.id==="mv_qty")updMvInfo();
+  if(t.id==="mv_qty"||t.id==="mv_cnt")updMvInfo();
   if(t.classList&&t.classList.contains("scq")){const r=scan&&scan.rows&&scan.rows[+t.dataset.k];if(r){r[t.dataset.f]=t.value;const cell=document.getElementById("sc_after_"+t.dataset.k);if(cell)cell.innerHTML=scanAfter(r);}}
   if(t.classList.contains("mlq")){menuForm.lines[+t.dataset.ix].qty=t.value;const ix=+t.dataset.ix;const l=menuForm.lines[ix];clearTimeout(menuForm.tm);menuForm.tm=setTimeout(()=>{const a=document.activeElement&&document.activeElement.id;menuForm.draw();if(a&&document.getElementById(a)){const e=document.getElementById(a);e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(_){}}},500);}
   else if(t.id==="mn_price"&&menuForm.draw)menuForm.draw();
@@ -517,13 +529,19 @@ document.addEventListener("input",ev=>{const t=ev.target;
 });
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#modalRoot").innerHTML)closeModal();});
 
+function whoOf(d){return d.byName||(d.byRole==="owner"?"老闆":d.byRole==="staff"?"員工":"");}
 /* ---------- receipt scan ---------- */
+function countLines(list){/* list: [{ingId,counted}] → stocktake lines vs current system stock */
+  return list.filter(x=>x.ingId&&x.counted!==""&&x.counted!=null&&isFinite(parseFloat(x.counted))).map(x=>{const exp=D.stock[x.ingId]||0,c=n(x.counted);
+    return {ingId:x.ingId,expected:Math.round(exp*1000)/1000,counted:c,adjust:Math.round((c-exp)*1000)/1000,cost:Math.round((D.cost[x.ingId]||0)*100)/100};});}
+async function saveCount(lines,date,note){if(!lines.length)return true;const id=genId();const doc={date,lines,note:note||"進貨時盤點",...meta()};
+  const j=await api("put",{col:"stocktakes",id,doc});applyLocal("stocktakes",id,j.doc||doc);return true;}
 let scan=null;
-function stockLine(ingId,add){const i=ingById(ingId);if(!i)return"";const cur=D.stock[ingId]||0;return `${qty(cur)} → <b>${qty(cur+add)}</b> ${esc(i.unit)}`;}
-function scanAfter(r){return r.ingId?stockLine(r.ingId,n(r.qty)):'<span class="muted">—</span>';}
+function stockLine(ingId,add,counted){const i=ingById(ingId);if(!i)return"";const has=counted!==""&&counted!=null&&isFinite(parseFloat(counted));const cur=has?n(counted):(D.stock[ingId]||0);return `${has?"盤點 ":"系統 "}${qty(cur)} → 進貨後 <b>${qty(cur+add)}</b> ${esc(i.unit)}${has&&Math.abs(n(counted)-(D.stock[ingId]||0))>1e-9?`　<span class=\"pill p-warn\">系統原本 ${qty(D.stock[ingId]||0)}</span>`:""}`;}
+function scanAfter(r){return r.ingId?stockLine(r.ingId,n(r.qty),r.counted):'<span class="muted">—</span>';}
 function updMvInfo(){const el=$("#mv_stock_info");if(!el)return;const id=$("#mv_ing")&&$("#mv_ing").value;const i=ingById(id);if(!i){el.textContent="";return;}
-  const cur=D.stock[id]||0,q=n($("#mv_qty")&&$("#mv_qty").value),type=$("#mv_type")&&$("#mv_type").value;const after=type==="in"?cur+q:cur-q;
-  el.innerHTML=`目前庫存：<b>${qty(cur)} ${esc(i.unit)}</b>${q>0?`　登記後：<b>${qty(after)} ${esc(i.unit)}</b>`:""}`;}
+  const sys=D.stock[id]||0,q=n($("#mv_qty")&&$("#mv_qty").value),type=$("#mv_type")&&$("#mv_type").value;const cv=type==="in"&&$("#mv_cnt")?$("#mv_cnt").value:"";const has=cv!==""&&isFinite(parseFloat(cv));const cur=has?n(cv):sys;const after=type==="in"?cur+q:cur-q;
+  el.innerHTML=`系統目前庫存：<b>${qty(sys)} ${esc(i.unit)}</b>${has?`　現場盤點：<b>${qty(cur)} ${esc(i.unit)}</b>${Math.abs(cur-sys)>1e-9?`（差 ${cur-sys>0?"+":""}${qty(cur-sys)}）`:""}`:""}${q>0?`　登記後：<b>${qty(after)} ${esc(i.unit)}</b>`:""}`;}
 async function startScan(file){
   clearDirty("sc_");scan={status:"busy",step:"壓縮照片中…"};render();
   try{const data=await shrinkPhoto(file,1600,0.82);scan.step="AI 辨識中，約 10～30 秒…";render();
@@ -551,6 +569,7 @@ function scanPanel(){
       <label class="f" style="grid-column:1/-1">對應食材<select class="scsel" id="sc_ing_${k}" data-k="${k}">${opts(r.ingId)}</select></label>
       <label class="f">數量${i?`（${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_q_${k}" data-k="${k}" data-f="qty" value="${esc(r.qty)}" inputmode="decimal"></label>
       <label class="f">單價${i?`（每${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_p_${k}" data-k="${k}" data-f="unitCost" value="${esc(r.unitCost)}" inputmode="decimal"></label>
+      <label class="f" style="grid-column:1/-1">盤點：進貨前現場還剩多少${i?`（${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_c_${k}" data-k="${k}" data-f="counted" value="${esc(r.counted??"")}" placeholder="${i?"系統目前 "+qty(D.stock[r.ingId]||0):"先選擇食材"}" inputmode="decimal"></label>
      </div>
      <div class="small">庫存：<span id="sc_after_${k}">${scanAfter(r)}</span></div></div>`}).join("")}</div>`:`<div class="empty">沒有讀到品項。</div>`}
    <div class="row between"><span class="small muted">AI 可能讀錯，請核對數量與單價後再寫入。</span><button class="btn primary" data-act="scan-save" ${ok?"":"disabled"}>確認寫入 ${ok} 筆</button></div></div>`;}
@@ -593,7 +612,7 @@ function docRef(col,id){return{
 db={collection:c=>({doc:id=>docRef(c,id),add:body=>docRef(c,null).set(body)}),doc:p=>{const[c,id]=p.split("/");return docRef(c,id);}};
 
 function applyAll(data){
-  for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes"]){S[c]=(data[c]||[]).map(d=>({...d}));sortCol(c);}
+  for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes","staff"]){S[c]=(data[c]||[]).map(d=>({...d}));sortCol(c);}
   const st=(data.settings||[]).find(d=>d.id==="main");S.settings={shopName:"",targetFoodCost:38,...(st||{})};
 }
 function cacheSave(){LS.set("hp_cache",JSON.stringify({role,S,at:Date.now()}));}
@@ -602,19 +621,19 @@ function cacheLoad(){try{const c=JSON.parse(LS.get("hp_cache")||"null");if(c&&c.
 let loading=false,lastSync=0;
 async function refresh(quiet){
   if(loading||!role)return;loading=true;
-  try{const j=await api("load");if((j.role==="owner"||j.role==="staff")&&j.role!==role){role=j.role;LS.set("hp_role",role);}applyAll(j.data);lastSync=Date.now();cacheSave();ready=true;setStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));$("#offline").hidden=true;schedule();}
+  try{const j=await api("load");if((j.role==="owner"||j.role==="staff")&&j.role!==role){role=j.role;LS.set("hp_role",role);}if(j.name&&j.name!==myName){myName=j.name;LS.set("hp_name",myName);$("#roleTag").textContent=isOwner()?"老闆":(myName.indexOf("共用")<0?myName:"員工");}applyAll(j.data);lastSync=Date.now();cacheSave();ready=true;setStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));$("#offline").hidden=true;schedule();}
   catch(e){
     if(e.code==="bad_pin"){logout("密碼已變更，請重新登入");}
     else{setStatus(e.code==="network"?"離線":"同步失敗");if(e.code==="network")$("#offline").hidden=false;else if(!quiet)toast(e.message);if(ready)schedule();else{$("#main").innerHTML='<div class="empty">資料載入失敗：'+esc(e.message)+'<br><br><button class="btn primary" id="retryLoad">重新載入</button></div>';const rb=$("#retryLoad");if(rb)rb.onclick=()=>{rb.disabled=true;rb.textContent="載入中…";refresh();};if(!refresh.retried){refresh.retried=1;setTimeout(()=>{if(!ready)refresh(true);},3000);}}}
   }finally{loading=false;}
 }
-function logout(msg){role=null;pin="";ready=false;LS.del("hp_pin");LS.del("hp_role");LS.del("hp_cache");for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes"])S[c]=[];closeModal();render();if(msg)toast(msg);}
+function logout(msg){role=null;pin="";myName="";LS.del("hp_name");ready=false;LS.del("hp_pin");LS.del("hp_role");LS.del("hp_cache");for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes"])S[c]=[];closeModal();render();if(msg)toast(msg);}
 
 function renderLogin(){
   $("#roleTag").hidden=true;$("#logoutBtn").hidden=true;$("#nav").innerHTML="";setStatus("");
   $("#main").innerHTML=`<form class="login" id="loginForm" autocomplete="off">
     <h1>${esc(S.settings.shopName||"鍋物庫存")}</h1>
-    <p class="muted" style="margin:0">請輸入店內密碼。員工密碼可登記進貨、報廢、營收與盤點；老闆密碼可看全部報表。</p>
+    <p class="muted" style="margin:0">請輸入你的登入密碼。員工可登記進貨、報廢與盤點；老闆可看全部報表。</p>
     <label class="f">密碼<input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" required></label>
     <button class="btn primary" type="submit" id="loginBtn">進入</button>
     ${API_URL?"":`<p class="small" style="color:var(--bad);margin:0">還沒設定後端網址：請在 config.js 填入 Google Apps Script 的部署網址。</p>`}
@@ -626,11 +645,11 @@ document.addEventListener("submit",async ev=>{
   if(ev.target.id!=="loginForm")return;ev.preventDefault();
   const btn=$("#loginBtn");const val=$("#pinInput").value.trim();if(!val)return;
   btn.disabled=true;btn.textContent="驗證中…第一次可能要 10 秒";pin=val;
-  try{const j=await api("login");if(j.role!=="owner"&&j.role!=="staff")throw new Error("伺服器版本不符，請老闆重新部署後端");role=j.role;LS.set("hp_pin",pin);LS.set("hp_role",role);tab="overview";enter();}
+  try{const j=await api("login");if(j.role!=="owner"&&j.role!=="staff")throw new Error("伺服器版本不符，請老闆重新部署後端");role=j.role;myName=j.name||"";LS.set("hp_pin",pin);LS.set("hp_role",role);LS.set("hp_name",myName);tab="overview";enter();}
   catch(e){pin="";btn.disabled=false;btn.textContent="進入";toast(e.code==="bad_pin"?"密碼錯誤":e.message);}
 });
 function enter(){
-  $("#roleTag").hidden=false;$("#roleTag").textContent=isOwner()?"老闆":"員工";$("#logoutBtn").hidden=false;
+  $("#roleTag").hidden=false;$("#roleTag").textContent=isOwner()?"老闆":(myName&&myName.indexOf("共用")<0?myName:"員工");$("#logoutBtn").hidden=false;
   const at=cacheLoad();if(at){ready=true;}
   if(!ready)$("#main").innerHTML='<div class="empty">正在載入資料…（第一次開啟可能要 10 秒）</div>';
   render();refresh();
@@ -643,7 +662,7 @@ setInterval(()=>{if(document.visibilityState==="visible"&&role&&!$("#modalRoot")
 if("serviceWorker" in navigator&&location.protocol==="https:"){navigator.serviceWorker.register("sw.js").catch(()=>{});}
 
 function boot(){
-  pin=LS.get("hp_pin")||"";role=pin?LS.get("hp_role"):null;
+  pin=LS.get("hp_pin")||"";role=pin?LS.get("hp_role"):null;myName=LS.get("hp_name")||"";
   if(role)enter();else render();
 }
 boot();
