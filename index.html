@@ -77,6 +77,13 @@ button.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:v
 button.btn:hover{background:var(--surface-2)}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
 button.primary:hover{background:var(--accent);filter:brightness(1.07)}
+label.btn{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:15px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:11px 18px;border-radius:8px;cursor:pointer;font-weight:700}
+label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.scanlist{display:flex;flex-direction:column;gap:10px}
+.scancard{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface-2)}
+.scancard.off{opacity:.75}
+.scanraw{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.scangrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 button.link{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:2px 4px}
 button.danger{color:var(--bad)}
 button:disabled{opacity:.5;cursor:not-allowed}
@@ -207,6 +214,7 @@ function render(){
   const R={overview,stock,moves,menu,sales,count,report,settings}[tab];
   $("#main").innerHTML=`<section class="tab">${R()}</section>`;
   for(const [k,v] of Object.entries(dirty)){const el=document.getElementById(k);if(el)el.value=v;}
+  updMvInfo();
   const mt=$("#mv_type");if(mt){const inT=mt.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
   document.querySelectorAll(".ctq").forEach(ctDiff);
   if(active){const el=document.getElementById(active);if(el&&el.tagName!=="BUTTON")el.focus();}
@@ -284,16 +292,18 @@ function moves(){
   const list=S.movements.filter(m=>moveFilter==="all"||m.type===moveFilter).sort((a,b)=>(b.date+(b.at||""))>(a.date+(a.at||""))?1:-1).slice(0,150);
   const TL={in:["進貨","p-good"],waste:["報廢","p-bad"],out:["領用","p-mute"]};
   return `<h2>進貨・報廢登記</h2>
-  <div class="panel"><h3>新增一筆</h3>
+  ${S.ingredients.length?scanPanel():""}
+  <div class="panel"><h3>手動新增一筆</h3>
    ${S.ingredients.length?`<div class="form">
     <label class="f">類型<select id="mv_type"><option value="in">進貨</option><option value="waste">報廢（過期、損壞、做壞）</option><option value="out">其他領用（員工餐、試菜、招待）</option></select></label>
     <label class="f">日期<input type="date" id="mv_date" value="${today()}"></label>
     <label class="f">食材<select id="mv_ing">${opts}</select></label>
+    <p class="small" id="mv_stock_info" style="margin:0;grid-column:1/-1;color:var(--muted)"></p>
     <label class="f">數量<input type="number" step="any" min="0" id="mv_qty" inputmode="decimal"></label>
     <label class="f" id="mv_cost_w">進貨單價（每單位${isOwner()?"":"，不知道可空白"}）<input type="number" step="any" min="0" id="mv_cost" inputmode="decimal"></label>
     <label class="f" id="mv_exp_w">到期日（選填）<input type="date" id="mv_exp"></label>
     <label class="f">備註<input id="mv_note" placeholder="供應商、單號、原因"></label>
-    <label class="f">照片（選填，例如送貨單、發票）<input type="file" id="mv_photo" accept="image/*"><span class="small" id="mv_photo_name">${pendingPhoto?"已選："+esc(pendingPhoto.name):""}</span></label>
+    <label class="f">拍照（選填，例如送貨單、發票）<input type="file" id="mv_photo" accept="image/*" capture="environment"><span class="small" id="mv_photo_name">${pendingPhoto?"已選："+esc(pendingPhoto.name):""}</span></label>
     <button class="btn primary" data-act="mv-add" id="mv_add_btn">登記</button></div>
     <p class="small muted" style="margin:0" id="mv_hint"></p>`:`<div class="empty">請先到「庫存」建立食材。</div>`}
   </div>
@@ -447,6 +457,14 @@ document.addEventListener("click",async ev=>{
     if(await w(()=>db.collection("ingredients").doc(id||undefined).set(body),"已儲存食材"))closeModal();return;}
   if(act==="ing-del"){const used=S.menu.filter(m=>(m.lines||[]).some(l=>l.ingId===id));if(used.length)return toast("這項食材還在「"+used.map(m=>m.name).join("、")+"」的配方中，請先移除");
     if(!confirmTwice(el,"ig"+id))return;if(await w(()=>db.doc("ingredients/"+id).delete(),"已刪除"))closeModal();return;}
+  if(act==="scan-cancel"){scan=null;clearDirty("sc_");render();return;}
+  if(act==="scan-save"){if(!scan||!scan.rows)return;const date=($("#sc_date")&&$("#sc_date").value)||scan.date||today();
+    const docs=scan.rows.filter(r=>r.ingId&&n(r.qty)>0).map(r=>({id:genId(),doc:{type:"in",date,ingId:r.ingId,qty:n(r.qty),unitCost:n(r.unitCost),expiry:"",note:"單據辨識"+(scan.supplier?"・"+scan.supplier:"")+(r.rawName?"（"+r.rawName+"）":""),photoId:scan.photoId||"",...meta()}}));
+    if(!docs.length)return toast("沒有可寫入的品項，請先選擇對應的食材");
+    el.disabled=true;el.textContent="寫入中…";
+    try{const j=await api("putMany",{col:"movements",docs});for(const x of j.saved||[])applyLocal("movements",x.id,x.doc);scan=null;clearDirty("sc_");render();toast("已寫入 "+(j.saved||[]).length+" 筆進貨，庫存已更新");}
+    catch(e){el.disabled=false;el.textContent="確認寫入";toast(e.code==="permission_denied"?"員工密碼不能做這件事":"寫入失敗："+e.message);}
+    return;}
   if(act==="mv-add"){const type=$("#mv_type").value,q=n($("#mv_qty").value);if(q<=0)return toast("請填數量");
     const body={type,date:$("#mv_date").value||today(),ingId:$("#mv_ing").value,qty:q,note:$("#mv_note").value.trim(),...meta()};
     if(type==="in"){body.unitCost=n($("#mv_cost").value);body.expiry=$("#mv_exp").value||"";if(!body.unitCost&&isOwner())return toast("請填進貨單價");}
@@ -481,11 +499,17 @@ document.addEventListener("change",ev=>{const t=ev.target;
   if(t.id==="sl_date"){salesDate=t.value||today();clearDirty("sl_");render();}
   else if(t.id==="rp_month"){reportMonth=t.value||today().slice(0,7);render();}
   else if(t.id==="mv_filter"){moveFilter=t.value;render();}
+  else if(t.id==="mv_ing"){updMvInfo();}
+  else if(t.id==="scan_input"){const f=t.files&&t.files[0];t.value="";if(f)startScan(f);}
+  else if(t.classList.contains("scsel")){const r=scan&&scan.rows&&scan.rows[+t.dataset.k];if(r){r.ingId=t.value;r.unitOk=true;render();}}
+  else if(t.id==="sc_date"){if(scan)scan.date=t.value;}
   else if(t.id==="mv_photo"){pendingPhoto=t.files&&t.files[0]||null;const nm=$("#mv_photo_name");if(nm)nm.textContent=pendingPhoto?"已選："+pendingPhoto.name:"";}
-  else if(t.id==="mv_type"){const inT=t.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
+  else if(t.id==="mv_type"){updMvInfo();const inT=t.value==="in";$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;}
   else if(t.classList.contains("mli")){menuForm.lines[+t.dataset.ix].ingId=t.value;menuForm.draw();}
 });
 document.addEventListener("input",ev=>{const t=ev.target;
+  if(t.id==="mv_qty")updMvInfo();
+  if(t.classList&&t.classList.contains("scq")){const r=scan&&scan.rows&&scan.rows[+t.dataset.k];if(r){r[t.dataset.f]=t.value;const cell=document.getElementById("sc_after_"+t.dataset.k);if(cell)cell.innerHTML=scanAfter(r);}}
   if(t.classList.contains("mlq")){menuForm.lines[+t.dataset.ix].qty=t.value;const ix=+t.dataset.ix;const l=menuForm.lines[ix];clearTimeout(menuForm.tm);menuForm.tm=setTimeout(()=>{const a=document.activeElement&&document.activeElement.id;menuForm.draw();if(a&&document.getElementById(a)){const e=document.getElementById(a);e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(_){}}},500);}
   else if(t.id==="mn_price"&&menuForm.draw)menuForm.draw();
   else if(t.classList.contains("ctq"))ctDiff(t);
@@ -493,12 +517,50 @@ document.addEventListener("input",ev=>{const t=ev.target;
 });
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#modalRoot").innerHTML)closeModal();});
 
+/* ---------- receipt scan ---------- */
+let scan=null;
+function stockLine(ingId,add){const i=ingById(ingId);if(!i)return"";const cur=D.stock[ingId]||0;return `${qty(cur)} → <b>${qty(cur+add)}</b> ${esc(i.unit)}`;}
+function scanAfter(r){return r.ingId?stockLine(r.ingId,n(r.qty)):'<span class="muted">—</span>';}
+function updMvInfo(){const el=$("#mv_stock_info");if(!el)return;const id=$("#mv_ing")&&$("#mv_ing").value;const i=ingById(id);if(!i){el.textContent="";return;}
+  const cur=D.stock[id]||0,q=n($("#mv_qty")&&$("#mv_qty").value),type=$("#mv_type")&&$("#mv_type").value;const after=type==="in"?cur+q:cur-q;
+  el.innerHTML=`目前庫存：<b>${qty(cur)} ${esc(i.unit)}</b>${q>0?`　登記後：<b>${qty(after)} ${esc(i.unit)}</b>`:""}`;}
+async function startScan(file){
+  clearDirty("sc_");scan={status:"busy",step:"壓縮照片中…"};render();
+  try{const data=await shrinkPhoto(file,1600,0.82);scan.step="AI 辨識中，約 10～30 秒…";render();
+    const j=await api("scan",{photoData:data});
+    scan={status:"done",supplier:j.supplier||"",date:j.date||today(),photoId:j.photoId,photoUrl:j.photoUrl,
+      rows:(j.items||[]).map(x=>({...x,qty:x.qty,unitCost:x.unitCost}))};
+    if(!scan.rows.length){toast("單據上沒有讀到品項，請拍清楚一點再試");}
+  }catch(e){scan=null;toast(e.message||"辨識失敗");}
+  render();}
+function scanPanel(){
+  const head=`<div class="row between"><h3>拍單據自動登記</h3>${scan&&scan.status==="done"?`<button class="link" data-act="scan-cancel">取消</button>`:""}</div>`;
+  if(!scan)return `<div class="panel">${head}
+    <p class="small muted" style="margin:0">對著送貨單或發票拍照，系統會自動讀出品項、數量（公斤、台斤會自動換算）和單價。確認後一次寫入，庫存會同時更新。</p>
+    <div><label class="btn" for="scan_input">拍攝進貨單據</label><input type="file" id="scan_input" accept="image/*" capture="environment" hidden></div></div>`;
+  if(scan.status==="busy")return `<div class="panel">${head}<div class="empty">${esc(scan.step||"處理中…")}</div></div>`;
+  const opts=id=>`<option value="">— 不登記 —</option>`+S.ingredients.map(i=>`<option value="${i.id}"${i.id===id?" selected":""}>${esc(i.name)}（${esc(i.unit)}）</option>`).join("");
+  const ok=scan.rows.filter(r=>r.ingId&&n(r.qty)>0).length;
+  return `<div class="panel">${head}
+   <div class="row" style="gap:16px"><label class="f" style="flex-direction:row;align-items:center;gap:8px">進貨日<input type="date" id="sc_date" value="${esc(scan.date)}" style="width:auto"></label>
+   ${scan.supplier?`<span class="small muted">供應商：${esc(scan.supplier)}</span>`:""}
+   ${scan.photoUrl?`<a class="small" href="${esc(scan.photoUrl)}" target="_blank" rel="noopener">看單據照片</a>`:""}</div>
+   ${scan.rows.length?`<div class="scanlist">${scan.rows.map((r,k)=>{const i=ingById(r.ingId);return `<div class="scancard${r.ingId?"":" off"}">
+     <div class="scanraw"><b>${esc(r.rawName)}</b><span class="muted">${qty(n(r.rawQty))} ${esc(r.rawUnit)}${n(r.rawPrice)?" @ "+money(n(r.rawPrice)):""}</span>${r.converted?`<span class="pill p-good">已換算成${esc(i?i.unit:"")}</span>`:""}${r.ingId&&!r.unitOk?`<span class="pill p-warn">單位不同，請確認數量</span>`:""}${!r.ingId?`<span class="pill p-warn">請選擇食材</span>`:""}</div>
+     <div class="scangrid">
+      <label class="f" style="grid-column:1/-1">對應食材<select class="scsel" id="sc_ing_${k}" data-k="${k}">${opts(r.ingId)}</select></label>
+      <label class="f">數量${i?`（${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_q_${k}" data-k="${k}" data-f="qty" value="${esc(r.qty)}" inputmode="decimal"></label>
+      <label class="f">單價${i?`（每${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_p_${k}" data-k="${k}" data-f="unitCost" value="${esc(r.unitCost)}" inputmode="decimal"></label>
+     </div>
+     <div class="small">庫存：<span id="sc_after_${k}">${scanAfter(r)}</span></div></div>`}).join("")}</div>`:`<div class="empty">沒有讀到品項。</div>`}
+   <div class="row between"><span class="small muted">AI 可能讀錯，請核對數量與單價後再寫入。</span><button class="btn primary" data-act="scan-save" ${ok?"":"disabled"}>確認寫入 ${ok} 筆</button></div></div>`;}
+
 /* ---------- photo ---------- */
 let pendingPhoto=null;
-function shrinkPhoto(file){return new Promise((res,rej)=>{
+function shrinkPhoto(file,max,quality){max=max||1400;quality=quality||0.72;return new Promise((res,rej)=>{
   const url=URL.createObjectURL(file);const img=new Image();
-  img.onload=()=>{try{const max=1400;let w=img.naturalWidth,h=img.naturalHeight;const k=Math.min(1,max/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
-    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",0.72));}catch(e){rej(e);}};
+  img.onload=()=>{try{let w=img.naturalWidth,h=img.naturalHeight;const k=Math.min(1,max/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
+    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",quality));}catch(e){rej(e);}};
   img.onerror=e=>{URL.revokeObjectURL(url);rej(e);};img.src=url;});}
 
 /* ---------- backend (Google Apps Script) ---------- */
@@ -508,7 +570,7 @@ function setStatus(s){$("#status").textContent=s;}
 async function api(action,payload){
   if(!API_URL)throw Object.assign(new Error("尚未設定後端網址（config.js）"),{code:"config"});
   let r;
-  const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),action==="put"&&payload&&payload.doc&&payload.doc.photoData?90000:40000);
+  const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),action==="scan"?120000:action==="putMany"?60000:action==="put"&&payload&&payload.doc&&payload.doc.photoData?90000:40000);
   try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(Object.assign({action,pin},payload||{})),redirect:"follow",signal:ctl.signal});}
   catch(e){throw Object.assign(new Error(e&&e.name==="AbortError"?"伺服器回應太久，請再試一次":"連不上伺服器，請檢查網路"),{code:"network"});}
   finally{clearTimeout(timer);}
