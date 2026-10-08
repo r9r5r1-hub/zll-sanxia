@@ -543,7 +543,7 @@ async function refresh(quiet){
   try{const j=await api("load");if((j.role==="owner"||j.role==="staff")&&j.role!==role){role=j.role;LS.set("hp_role",role);}applyAll(j.data);lastSync=Date.now();cacheSave();ready=true;setStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));$("#offline").hidden=true;schedule();}
   catch(e){
     if(e.code==="bad_pin"){logout("密碼已變更，請重新登入");}
-    else{setStatus(e.code==="network"?"離線":"同步失敗");if(e.code==="network")$("#offline").hidden=false;else if(!quiet)toast(e.message);if(ready)schedule();}
+    else{setStatus(e.code==="network"?"離線":"同步失敗");if(e.code==="network")$("#offline").hidden=false;else if(!quiet)toast(e.message);if(ready)schedule();else{$("#main").innerHTML='<div class="empty">資料載入失敗：'+esc(e.message)+'<br><br><button class="btn primary" id="retryLoad">重新載入</button></div>';const rb=$("#retryLoad");if(rb)rb.onclick=()=>{rb.disabled=true;rb.textContent="載入中…";refresh();};if(!refresh.retried){refresh.retried=1;setTimeout(()=>{if(!ready)refresh(true);},3000);}}}
   }finally{loading=false;}
 }
 function logout(msg){role=null;pin="";ready=false;LS.del("hp_pin");LS.del("hp_role");LS.del("hp_cache");for(const c of ["ingredients","movements","menu","sales","expenses","stocktakes"])S[c]=[];closeModal();render();if(msg)toast(msg);}
