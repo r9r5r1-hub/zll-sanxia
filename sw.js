@@ -1,5 +1,5 @@
 /* 讓 App 可以加到主畫面、離線時也能打開上次的畫面。資料一律走網路。 */
-const CACHE = "hotpot-v6";
+const CACHE = "hotpot-v7";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {

@@ -519,12 +519,12 @@ document.addEventListener("click",async ev=>{
     if(!confirmTwice(el,"ig"+id))return;if(await w(()=>db.doc("ingredients/"+id).delete(),"已刪除"))closeModal();return;}
   if(act==="scan-cancel"){scan=null;clearDirty("sc_");render();return;}
   if(act==="scan-save"){if(!scan||!scan.rows)return;const date=($("#sc_date")&&$("#sc_date").value)||scan.date||today();
-    const docs=scan.rows.filter(r=>r.ingId&&n(r.qty)>0).map(r=>({id:genId(),doc:{type:"in",date,ingId:r.ingId,qty:n(r.qty),unitCost:n(r.unitCost),expiry:"",note:"單據辨識"+(scan.supplier?"・"+scan.supplier:"")+(r.rawName?"（"+r.rawName+"）":""),photoId:scan.photoId||"",rk:scan.rows.indexOf(r),...meta()}}));
-    if(!docs.length)return toast("沒有可寫入的品項，請先選擇對應的食材");
+    const docs=scan.rows.filter(scanRowOk).map(r=>({id:genId(),doc:{type:"in",date,ingId:r.ingId||"",...(r.ingId?{}:{newIng:{name:String(r.newName).trim(),unit:String(r.unit||"").trim(),cat:r.cat}}),qty:n(r.qty),unitCost:n(r.unitCost),expiry:"",note:"單據辨識"+(scan.supplier?"・"+scan.supplier:"")+(r.rawName?"（"+r.rawName+"）":""),photoId:scan.photoId||"",rk:scan.rows.indexOf(r),...meta()}}));
+    if(!docs.length)return toast("沒有可入庫的品項");
     el.disabled=true;el.textContent="寫入中…";
-    try{await saveCount(countLines(scan.rows.filter(r=>r.ingId&&n(r.qty)>0).map(r=>({ingId:r.ingId,counted:r.counted}))),date,"進貨時盤點（單據辨識）");
-      const j=await api("putMany",{col:"movements",docs,receiptId:scan.receiptId||"",supplier:scan.supplier||""});for(const x of j.saved||[])applyLocal("movements",x.id,x.doc);if(j.receipt&&scan&&scan.receiptId)applyLocal("receipts",scan.receiptId,j.receipt);scan=null;clearDirty("sc_");render();toast("已寫入 "+(j.saved||[]).length+" 筆進貨"+(scan&&false?"":"")+"，庫存已更新");}
-    catch(e){el.disabled=false;el.textContent="確認寫入";toast(e.code==="permission_denied"?"員工密碼不能做這件事":"寫入失敗："+e.message);}
+    try{await saveCount(countLines(scan.rows.filter(r=>scanRowOk(r)&&r.ingId).map(r=>({ingId:r.ingId,counted:r.counted}))),date,"進貨時盤點（單據辨識）");
+      const j=await api("putMany",{col:"movements",docs,receiptId:scan.receiptId||"",supplier:scan.supplier||""});for(const x of j.created||[])applyLocal("ingredients",x.id,x.doc);for(const x of j.saved||[])applyLocal("movements",x.id,x.doc);if(j.receipt&&scan&&scan.receiptId)applyLocal("receipts",scan.receiptId,j.receipt);scan=null;clearDirty("sc_");render();toast("已入庫 "+(j.saved||[]).length+" 筆"+((j.created||[]).length?"，新增 "+j.created.length+" 項食材":"")+"，庫存已更新");}
+    catch(e){el.disabled=false;el.textContent="確認入庫";toast(e.code==="permission_denied"?"員工密碼不能做這件事":"寫入失敗："+e.message);}
     return;}
   if(act==="mv-add"){const type=$("#mv_type").value,q=n($("#mv_qty").value);if(q<=0)return toast("請填數量");
     const body={type,date:$("#mv_date").value||today(),ingId:$("#mv_ing").value,qty:q,note:$("#mv_note").value.trim(),...meta()};
@@ -536,6 +536,7 @@ document.addEventListener("click",async ev=>{
     const ok=await w(()=>db.collection("movements").add(body),cv!==""?"已登記盤點與進貨":"已登記");
     const b2=$("#mv_add_btn");if(b2){b2.disabled=false;b2.textContent="登記";}
     if(ok){pendingPhoto=null;if($("#mv_cnt"))$("#mv_cnt").value="";["mv_qty","mv_note","mv_cost","mv_exp","mv_cnt"].forEach(k=>delete dirty[k]);if($("#mv_qty"))$("#mv_qty").value="";if($("#mv_note"))$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";if($("#mv_photo"))$("#mv_photo").value="";if($("#mv_photo_name"))$("#mv_photo_name").textContent="";}return;}
+  if(act==="sc-skip"){const r=scan&&scan.rows&&scan.rows[+el.dataset.k];if(r){r.skip=!r.skip;render();}return;}
   if(act==="cat-sel"){catSel=id||"all";applyCat();return;}
   if(act==="pp-save"){const date=($("#pp_date")&&$("#pp_date").value)||today();
     const docs=[...document.querySelectorAll(".ppq")].filter(x=>n(x.value)>0).map(x=>({id:genId(),doc:{type:"prep",date,ingId:x.dataset.ing,qty:n(x.value),note:"每日備貨",...meta()}}));
@@ -587,7 +588,7 @@ document.addEventListener("change",ev=>{const t=ev.target;
   else if(t.id==="pp_date"){prepDate=t.value||today();delete dirty.pp_date;render();}
   else if(t.id==="mv_ing"){updMvInfo();}
   else if(t.id==="scan_input"){const f=t.files&&t.files[0];t.value="";if(f)startScan(f);}
-  else if(t.classList.contains("scsel")){const r=scan&&scan.rows&&scan.rows[+t.dataset.k];if(r){r.ingId=t.value;r.unitOk=true;render();}}
+  else if(t.classList.contains("sccat")){const r=scan&&scan.rows&&scan.rows[+t.dataset.k];if(r){r.cat=t.value;}}
   else if(t.id==="sc_date"){if(scan)scan.date=t.value;}
   else if(t.id==="up_input"){upFiles=[...(t.files||[])].filter(f=>/^image\//.test(f.type)||!f.type).slice(0,10);t.value="";updUp();}
   else if(t.id==="mv_type"){updMvInfo();const inT=t.value==="in";if($("#mv_cost_w"))$("#mv_cost_w").hidden=!inT;$("#mv_exp_w").hidden=!inT;$("#mv_cnt_w").hidden=!inT;}
@@ -613,7 +614,8 @@ async function saveCount(lines,date,note){if(!lines.length)return true;const id=
   const j=await api("put",{col:"stocktakes",id,doc});applyLocal("stocktakes",id,j.doc||doc);return true;}
 let scan=null;
 function stockLine(ingId,add,counted){const i=ingById(ingId);if(!i)return"";const has=counted!==""&&counted!=null&&isFinite(parseFloat(counted));const cur=has?n(counted):(D.stock[ingId]||0);return `${has?"盤點 ":"系統 "}${qty(cur)} → 進貨後 <b>${qty(cur+add)}</b> ${esc(i.unit)}${has&&Math.abs(n(counted)-(D.stock[ingId]||0))>1e-9?`　<span class=\"pill p-warn\">系統原本 ${qty(D.stock[ingId]||0)}</span>`:""}`;}
-function scanAfter(r){return r.ingId?stockLine(r.ingId,n(r.qty),r.counted):'<span class="muted">—</span>';}
+function scanRowOk(r){return !r.skip&&n(r.qty)>0&&(r.ingId||String(r.newName||"").trim());}
+function scanAfter(r){if(r.skip)return '<span class="muted">不入庫</span>';return r.ingId?stockLine(r.ingId,n(r.qty),r.counted):`新品項，入庫後 <b>${qty(n(r.qty))}</b> ${esc(r.unit||"")}`;}
 function updMvInfo(){const el=$("#mv_stock_info");if(!el)return;const id=$("#mv_ing")&&$("#mv_ing").value;const i=ingById(id);if(!i){el.textContent="";return;}
   const sys=D.stock[id]||0,q=n($("#mv_qty")&&$("#mv_qty").value),type=$("#mv_type")&&$("#mv_type").value;const cv=type==="in"&&$("#mv_cnt")?$("#mv_cnt").value:"";const has=cv!==""&&isFinite(parseFloat(cv));const cur=has?n(cv):sys;const after=type==="in"?cur+q:cur-q;
   el.innerHTML=`系統目前庫存：<b>${qty(sys)} ${esc(i.unit)}</b>${has?`　現場盤點：<b>${qty(cur)} ${esc(i.unit)}</b>${Math.abs(cur-sys)>1e-9?`（差 ${cur-sys>0?"+":""}${qty(cur-sys)}）`:""}`:""}${q>0?`　登記後：<b>${qty(after)} ${esc(i.unit)}</b>`:""}`;}
@@ -623,7 +625,7 @@ async function startScan(file){
     const j=await api("scan",{photoData:data});
     if(j.receiptId&&j.receipt)applyLocal("receipts",j.receiptId,j.receipt);
     scan={status:"done",supplier:j.supplier||"",date:j.date||today(),photoId:j.photoId,photoUrl:j.photoUrl,receiptId:j.receiptId||"",
-      rows:(j.items||[]).map(x=>({...x,qty:x.qty,unitCost:x.unitCost}))};
+      rows:(j.items||[]).map(x=>({...x,qty:x.qty,unitCost:x.unitCost,newName:x.rawName||"",cat:CATS.includes(x.cat)?x.cat:"雜貨",unit:x.unit||x.rawUnit||""}))};
     if(!scan.rows.length){toast("單據上沒有讀到品項，請拍清楚一點再試");}
   }catch(e){scan=null;const d=e.data;if(d&&d.receiptId&&d.receipt)applyLocal("receipts",d.receiptId,d.receipt);toast(e.message||"辨識失敗");}
   render();}
@@ -633,22 +635,23 @@ function scanPanel(){
     <p class="small muted" style="margin:0">對著送貨單或發票拍照，系統會自動讀出品項、數量（公斤、台斤會自動換算）${isOwner()?"和單價":""}。確認後一次寫入，庫存會同時更新。</p>
     <div><label class="btn" for="scan_input">拍攝進貨單據</label><input type="file" id="scan_input" accept="image/*" capture="environment" hidden></div></div>`;
   if(scan.status==="busy")return `<div class="panel">${head}<div class="empty">${esc(scan.step||"處理中…")}</div></div>`;
-  const opts=id=>`<option value="">— 不登記 —</option>`+S.ingredients.map(i=>`<option value="${i.id}"${i.id===id?" selected":""}>${esc(i.name)}（${esc(i.unit)}）</option>`).join("");
-  const ok=scan.rows.filter(r=>r.ingId&&n(r.qty)>0).length;
+  const ok=scan.rows.filter(scanRowOk).length,nNew=scan.rows.filter(r=>scanRowOk(r)&&!r.ingId).length;
   return `<div class="panel">${head}
    <div class="row" style="gap:16px"><label class="f" style="flex-direction:row;align-items:center;gap:8px">進貨日<input type="date" id="sc_date" value="${esc(scan.date)}" style="width:auto"></label>
    ${scan.supplier?`<span class="small muted">供應商：${esc(scan.supplier)}</span>`:""}
    ${scan.photoUrl?`<a class="small" href="${esc(scan.photoUrl)}" target="_blank" rel="noopener">看單據照片</a>`:""}</div>
-   ${scan.rows.length?`<div class="scanlist">${scan.rows.map((r,k)=>{const i=ingById(r.ingId);return `<div class="scancard${r.ingId?"":" off"}">
-     <div class="scanraw"><b>${esc(r.rawName)}</b><span class="muted">${qty(n(r.rawQty))} ${esc(r.rawUnit)}${isOwner()&&n(r.rawPrice)?" @ "+money(n(r.rawPrice)):""}</span>${r.converted?`<span class="pill p-good">已換算成${esc(i?i.unit:"")}</span>`:""}${r.ingId&&!r.unitOk?`<span class="pill p-warn">單位不同，請確認數量</span>`:""}${!r.ingId?`<span class="pill p-warn">請選擇食材</span>`:""}</div>
-     <div class="scangrid">
-      <label class="f" style="grid-column:1/-1">對應食材<select class="scsel" id="sc_ing_${k}" data-k="${k}">${opts(r.ingId)}</select></label>
-      <label class="f">數量${i?`（${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_q_${k}" data-k="${k}" data-f="qty" value="${esc(r.qty)}" inputmode="decimal"></label>
-      ${isOwner()?`<label class="f">單價${i?`（每${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_p_${k}" data-k="${k}" data-f="unitCost" value="${esc(r.unitCost)}" inputmode="decimal"></label>`:""}
-      <label class="f" style="grid-column:1/-1">盤點：進貨前現場還剩多少${i?`（${esc(i.unit)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_c_${k}" data-k="${k}" data-f="counted" value="${esc(r.counted??"")}" placeholder="${i?"系統目前 "+qty(D.stock[r.ingId]||0):"先選擇食材"}" inputmode="decimal"></label>
-     </div>
+   ${scan.rows.length?`<div class="scanlist">${scan.rows.map((r,k)=>{const i=ingById(r.ingId);const u=i?i.unit:(r.unit||"");return `<div class="scancard${r.skip?" off":""}">
+     <div class="scanraw"><b>${esc(i?i.name:r.rawName)}</b><span class="muted">單據：${esc(r.rawName)} ${qty(n(r.rawQty))} ${esc(r.rawUnit)}${isOwner()&&n(r.rawPrice)?" @ "+money(n(r.rawPrice)):""}</span>${i?`<span class="pill p-good">入庫到現有食材</span>`:`<span class="pill p-warn">新品項，會自動建立</span>`}${r.converted?`<span class="pill p-good">已換算成${esc(u)}</span>`:""}${r.ingId&&!r.unitOk?`<span class="pill p-warn">單位不同，請確認數量</span>`:""}<button class="link${r.skip?"":" danger"}" data-act="sc-skip" data-k="${k}">${r.skip?"改回入庫":"這項不入庫"}</button></div>
+     ${r.skip?"":`<div class="scangrid">
+      ${i?"":`<label class="f" style="grid-column:1/-1">品名<input class="scq" id="sc_n_${k}" data-k="${k}" data-f="newName" value="${esc(r.newName)}"></label>
+      <label class="f">分類<select class="sccat" id="sc_cat_${k}" data-k="${k}">${CATS.map(c=>`<option${c===r.cat?" selected":""}>${c}</option>`).join("")}</select></label>
+      <label class="f">單位<input class="scq" id="sc_u_${k}" data-k="${k}" data-f="unit" value="${esc(r.unit)}" placeholder="公斤、包、箱"></label>`}
+      <label class="f">數量${u?`（${esc(u)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_q_${k}" data-k="${k}" data-f="qty" value="${esc(r.qty)}" inputmode="decimal"></label>
+      ${isOwner()?`<label class="f">單價${u?`（每${esc(u)}）`:""}<input type="number" step="any" min="0" class="scq" id="sc_p_${k}" data-k="${k}" data-f="unitCost" value="${esc(r.unitCost)}" inputmode="decimal"></label>`:""}
+      ${i?`<label class="f" style="grid-column:1/-1">盤點：進貨前現場還剩多少（${esc(i.unit)}）<input type="number" step="any" min="0" class="scq" id="sc_c_${k}" data-k="${k}" data-f="counted" value="${esc(r.counted??"")}" placeholder="系統目前 ${qty(D.stock[r.ingId]||0)}" inputmode="decimal"></label>`:""}
+     </div>`}
      <div class="small">庫存：<span id="sc_after_${k}">${scanAfter(r)}</span></div></div>`}).join("")}</div>`:`<div class="empty">沒有讀到品項。</div>`}
-   <div class="row between"><span class="small muted">AI 可能讀錯，請核對${isOwner()?"數量與單價":"品項與數量"}後再寫入。</span><button class="btn primary" data-act="scan-save" ${ok?"":"disabled"}>確認寫入 ${ok} 筆</button></div></div>`;}
+   <div class="row between"><span class="small muted">AI 可能讀錯，請核對${isOwner()?"數量與單價":"品項與數量"}後再寫入。</span><button class="btn primary" data-act="scan-save" ${ok?"":"disabled"}>確認入庫 ${ok} 筆${nNew?`（含新品項 ${nNew}）`:""}</button></div></div>`;}
 
 /* ---------- 單據照片 ---------- */
 let upFiles=[],rcLimit=24;
