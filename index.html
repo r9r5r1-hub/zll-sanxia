@@ -82,6 +82,7 @@ label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .scanlist{display:flex;flex-direction:column;gap:10px}
 .alert{border:1px solid var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent);color:var(--fg);border-radius:8px;padding:10px 12px;font-size:14px}
 .prepgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.prepi{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface-2)}.prepi .pn{font-weight:600}.prepi input{flex:1;min-width:0;width:auto}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;-webkit-overflow-scrolling:touch}.chip{flex:none;border:1px solid var(--line);background:var(--surface-2);color:var(--fg);border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer}.chip span{opacity:.6;font-size:12px}.chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}.catrow{font-weight:700;background:var(--surface-2)}
 .rcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.rccard{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2);display:flex;flex-direction:column}.rccard img{width:100%;height:150px;object-fit:cover;display:block;background:var(--line)}.rccard .rcb{padding:8px;display:flex;flex-direction:column;gap:4px;font-size:13px}
 .scancard{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface-2)}
 .scancard.off{opacity:.75}
@@ -181,6 +182,15 @@ function derive(){
   for(const st of S.stocktakes)for(const l of (st.lines||[]))if(l.ingId in stock)stock[l.ingId]+=n(l.adjust);
   D={cost,stock,recipeCost,usage,daily};
 }
+const CATS=["生鮮","肉","菜","火鍋料","飲料","雜貨"];
+const CAT_ALIAS={"肉品":"肉","肉類":"肉","豬肉":"肉","牛肉":"肉","雞肉":"肉","羊肉":"肉","蔬菜":"菜","青菜":"菜","菇類":"菜","海鮮":"生鮮","水產":"生鮮","海產":"生鮮","飲品":"飲料","酒水":"飲料","酒類":"飲料","湯底醬料":"雜貨","醬料":"雜貨","調味料":"雜貨","主食":"雜貨","乾貨":"雜貨","耗材":"雜貨","火鍋餃類":"火鍋料","丸類":"火鍋料","未分類":"其他"};
+function catOf(i){const c=String(i.cat||"").trim();return CAT_ALIAS[c]||c||"其他";}
+function catList(){const used=new Set(S.ingredients.map(catOf));return [...CATS.filter(c=>used.has(c)),...[...used].filter(c=>!CATS.includes(c)).sort((a,b)=>a==="其他"?1:b==="其他"?-1:a.localeCompare(b,"zh-Hant"))];}
+let catSel="all";
+function catChips(){const cs=catList();if(cs.length<2)return"";const cnt=c=>S.ingredients.filter(i=>catOf(i)===c).length;
+  return `<div class="chips" role="tablist">${[["all","全部",S.ingredients.length],...cs.map(c=>[c,c,cnt(c)])].map(([k,l,nn])=>`<button class="chip${catSel===k?" on":""}" data-act="cat-sel" data-id="${esc(k)}">${esc(l)} <span>${nn}</span></button>`).join("")}</div>`;}
+function catHidden(c){return catSel!=="all"&&catSel!==c?" hidden":"";}
+function applyCat(){document.querySelectorAll("[data-cat]").forEach(el=>{el.hidden=catSel!=="all"&&el.dataset.cat!==catSel;});document.querySelectorAll(".chip").forEach(b=>b.classList.toggle("on",b.dataset.id===catSel));}
 function prepMode(){return (S.settings.stockMode||"prep")==="prep";}
 function daysLeft(id){const d=D.daily&&D.daily[id];return d>0?(D.stock[id]||0)/d:Infinity;}
 function lowList(){return S.ingredients.filter(i=>n(i.safety)>0&&(D.stock[i.id]||0)<n(i.safety)||(D.stock[i.id]||0)<=0&&n(i.safety)>0).sort((a,b)=>(D.stock[a.id]/(n(a.safety)||1))-(D.stock[b.id]/(n(b.safety)||1)));}
@@ -290,12 +300,13 @@ function trendPanel(a,b,title){
 function niceMax(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;}
 
 function stock(){
-  const cats=[...new Set(S.ingredients.map(i=>i.cat||"未分類"))];
+  const cats=catList();
   let total=0;for(const i of S.ingredients)total+=Math.max(0,D.stock[i.id]||0)*(D.cost[i.id]||0);
   return `<div class="row between"><h2>食材庫存</h2><div class="row">${isOwner()?`<span class="small muted">庫存總值 <b class="num">${money(total)}</b></span><button class="btn primary" data-act="ing-new">新增食材</button>`:""}</div></div>
   <p class="small muted" style="margin:0">現有量 = 進貨 − ${prepMode()?"每日備貨":"依配方從營收自動扣減"} − 報廢與領用 ± 盤點調整。${isOwner()?"單位成本取所有進貨的加權平均，還沒有進貨時用你填的參考成本。":"新增或修改食材品項請找老闆。"}</p>
-  ${S.ingredients.length?cats.map(c=>`<div class="panel"><h3>${esc(c)}</h3><div class="tbl"><table><thead><tr><th>食材</th><th class="num">現有量</th><th class="num">叫貨提醒量</th>${isOwner()?`<th class="num">單位成本</th><th class="num">庫存值</th>`:""}<th>狀態</th><th>供應商</th>${isOwner()?"<th></th>":""}</tr></thead><tbody>
-  ${S.ingredients.filter(i=>(i.cat||"未分類")===c).map(i=>{const s=D.stock[i.id]||0,[l,cl]=stockState(i);return `<tr><td>${esc(i.name)}</td><td class="num">${qty(s)} ${esc(i.unit)}</td><td class="num">${qty(n(i.safety))}</td>${isOwner()?`<td class="num">${money(D.cost[i.id]||0)}/${esc(i.unit)}</td><td class="num">${money(Math.max(0,s)*(D.cost[i.id]||0))}</td>`:""}<td><span class="pill ${cl}">${l}</span></td><td class="small muted">${esc(i.supplier||"")}</td>${isOwner()?`<td><button class="link" data-act="ing-edit" data-id="${i.id}">編輯</button></td>`:""}</tr>`}).join("")}
+  ${catChips()}
+  ${S.ingredients.length?cats.map(c=>`<div class="panel" data-cat="${esc(c)}"${catHidden(c)}><h3>${esc(c)} <span class="small muted">${S.ingredients.filter(i=>catOf(i)===c).length} 項</span></h3><div class="tbl"><table><thead><tr><th>食材</th><th class="num">現有量</th><th class="num">叫貨提醒量</th>${isOwner()?`<th class="num">單位成本</th><th class="num">庫存值</th>`:""}<th>狀態</th><th>供應商</th>${isOwner()?"<th></th>":""}</tr></thead><tbody>
+  ${S.ingredients.filter(i=>catOf(i)===c).map(i=>{const s=D.stock[i.id]||0,[l,cl]=stockState(i);return `<tr><td>${esc(i.name)}</td><td class="num">${qty(s)} ${esc(i.unit)}</td><td class="num">${qty(n(i.safety))}</td>${isOwner()?`<td class="num">${money(D.cost[i.id]||0)}/${esc(i.unit)}</td><td class="num">${money(Math.max(0,s)*(D.cost[i.id]||0))}</td>`:""}<td><span class="pill ${cl}">${l}</span></td><td class="small muted">${esc(i.supplier||"")}</td>${isOwner()?`<td><button class="link" data-act="ing-edit" data-id="${i.id}">編輯</button></td>`:""}</tr>`}).join("")}
   </tbody></table></div></div>`).join(""):`<div class="empty">還沒有食材。按「新增食材」建立第一項，例如牛五花、高麗菜、湯底。</div>`}`;
 }
 
@@ -361,7 +372,7 @@ function sales(){
 let prepDate=null;
 function prep(){
   const d=prepDate||today();
-  const cats=[...new Set(S.ingredients.map(i=>i.cat||"未分類"))];
+  const cats=catList();
   const recs=S.movements.filter(m=>m.type==="prep"&&m.date===d);
   const byIng={};for(const m of recs)byIng[m.ingId]=(byIng[m.ingId]||0)+n(m.qty);
   const byWho={};for(const m of recs){const k=whoOf(m)||"未記名";const b=byWho[k]||(byWho[k]={items:new Set(),n:0,lines:{}});b.items.add(m.ingId);b.n++;b.lines[m.ingId]=(b.lines[m.ingId]||0)+n(m.qty);}
@@ -371,7 +382,8 @@ function prep(){
   <p class="small muted" style="margin:0">把今天從庫存拿出來備好的量填進去（例如切好的肉盤、洗好的菜），送出後會直接從庫存扣掉，並記下是誰備的。只填有備的品項，空白會略過。</p>
   ${low.length?`<div class="alert"><b>叫貨提醒：</b>${low.map(i=>`${esc(i.name)}（剩 ${qty(D.stock[i.id]||0)} ${esc(i.unit)}）`).join("、")}</div>`:""}
   ${S.ingredients.length?`<div class="panel"><h3>登記備貨</h3>
-   ${cats.map(c=>`<div class="small muted" style="margin-top:4px"><b>${esc(c)}</b></div><div class="prepgrid">${S.ingredients.filter(i=>(i.cat||"未分類")===c).map(i=>{const s=D.stock[i.id]||0;return `<label class="prepi"><span class="pn">${esc(i.name)}</span><span class="small muted">庫存 ${qty(s)} ${esc(i.unit)}${byIng[i.id]?`・今天已備 ${qty(byIng[i.id])}`:""}</span><span class="row" style="gap:6px;align-items:center"><input type="number" min="0" step="any" inputmode="decimal" class="ppq" id="pp_${i.id}" data-ing="${i.id}" placeholder="0"><span class="small">${esc(i.unit)}</span></span><span class="small" id="ppa_${i.id}"></span></label>`}).join("")}</div>`).join("")}
+   ${catChips()}
+   ${cats.map(c=>`<div data-cat="${esc(c)}"${catHidden(c)}><div class="small muted" style="margin:6px 0 4px"><b>${esc(c)}</b></div><div class="prepgrid">${S.ingredients.filter(i=>catOf(i)===c).map(i=>{const s=D.stock[i.id]||0;return `<label class="prepi"><span class="pn">${esc(i.name)}</span><span class="small muted">庫存 ${qty(s)} ${esc(i.unit)}${byIng[i.id]?`・今天已備 ${qty(byIng[i.id])}`:""}</span><span class="row" style="gap:6px;align-items:center"><input type="number" min="0" step="any" inputmode="decimal" class="ppq" id="pp_${i.id}" data-ing="${i.id}" placeholder="0"><span class="small">${esc(i.unit)}</span></span><span class="small" id="ppa_${i.id}"></span></label>`}).join("")}</div></div>`).join("")}
    <div class="row between"><span class="small muted" id="pp_sum"></span><button class="btn primary" data-act="pp-save" id="pp_save">送出備貨</button></div></div>`:`<div class="empty">請先建立食材。</div>`}
   <div class="grid2">
    <div class="panel"><h3>${esc(d)} 備貨量</h3>
@@ -391,8 +403,9 @@ function count(){
   return `<h2>盤點與損耗</h2>
   <div class="panel"><div class="row between"><h3>新增盤點</h3><label class="f" style="flex-direction:row;align-items:center;gap:8px">盤點日<input type="date" id="ct_date" value="${today()}" style="width:auto"></label></div>
   <p class="small muted" style="margin:0">只填有實際盤到的項目，空白的會略過。系統量是依進貨、報廢與營收算出的理論值；實盤比系統少的部分就是盤損，會計入當月實際食材成本。</p>
+  ${catChips()}
   ${S.ingredients.length?`<div class="tbl"><table><thead><tr><th>食材</th><th class="num">系統量</th><th class="num">實盤量</th><th class="num">差異</th></tr></thead><tbody>
-  ${S.ingredients.map(i=>`<tr><td>${esc(i.name)}</td><td class="num">${qty(D.stock[i.id]||0)} ${esc(i.unit)}</td><td class="num"><input type="number" min="0" step="any" id="ct_${i.id}" data-ing="${i.id}" class="ctq" inputmode="decimal" style="text-align:right"></td><td class="num" id="ctd_${i.id}">—</td></tr>`).join("")}
+  ${catList().map(c=>`<tr data-cat="${esc(c)}"${catHidden(c)}><td colspan="4" class="catrow">${esc(c)}</td></tr>`+S.ingredients.filter(i=>catOf(i)===c).map(i=>`<tr data-cat="${esc(c)}"${catHidden(c)}><td>${esc(i.name)}</td><td class="num">${qty(D.stock[i.id]||0)} ${esc(i.unit)}</td><td class="num"><input type="number" min="0" step="any" id="ct_${i.id}" data-ing="${i.id}" class="ctq" inputmode="decimal" style="text-align:right"></td><td class="num" id="ctd_${i.id}">—</td></tr>`).join("")).join("")}
   </tbody></table></div><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="ct-save">儲存盤點結果</button></div>`:`<div class="empty">請先建立食材。</div>`}</div>
   <div class="panel"><h3>盤點紀錄</h3>
   ${last.length?last.map(st=>{let loss=0;const rows=(st.lines||[]).filter(l=>Math.abs(n(l.adjust))>1e-9).sort((a,b)=>n(a.adjust)*n(a.cost)-n(b.adjust)*n(b.cost));for(const l of st.lines||[])loss+=-n(l.adjust)*n(l.cost);
@@ -458,10 +471,10 @@ function settings(){
 /* ---------- modals ---------- */
 function modal(html){$("#modalRoot").innerHTML=`<div class="overlay" data-act="modal-bg"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;const f=$("#modalRoot input,#modalRoot select");if(f)f.focus();}
 function closeModal(){$("#modalRoot").innerHTML="";}
-function ingForm(i){i=i||{};const cats=[...new Set(S.ingredients.map(x=>x.cat).filter(Boolean).concat(["肉品","海鮮","蔬菜","火鍋料","湯底醬料","主食"]))];
+function ingForm(i){i=i||{};const cur=i.id?catOf(i):(catSel!=="all"?catSel:"");const cats=[...new Set(CATS.concat(catList()).filter(c=>c!=="其他"))];
   modal(`<h2>${i.id?"編輯食材":"新增食材"}</h2><div class="form">
   <label class="f">名稱<input id="ig_name" value="${esc(i.name||"")}"></label>
-  <label class="f">分類<input id="ig_cat" list="ig_cats" value="${esc(i.cat||"")}"><datalist id="ig_cats">${cats.map(c=>`<option value="${esc(c)}">`).join("")}</datalist></label>
+  <label class="f">分類<select id="ig_cat">${cats.map(c=>`<option value="${esc(c)}"${c===cur?" selected":""}>${esc(c)}</option>`).join("")}<option value=""${cur===""||cur==="其他"?" selected":""}>其他</option></select></label>
   <label class="f">單位<input id="ig_unit" value="${esc(i.unit||"公斤")}" placeholder="公斤、包、顆、盒"></label>
   <label class="f">參考成本（每單位）<input type="number" step="any" min="0" id="ig_cost" value="${esc(i.cost??"")}"></label>
   <label class="f">叫貨提醒量（低於就提醒）<input type="number" step="any" min="0" id="ig_safety" value="${esc(i.safety??"")}"></label>
@@ -523,6 +536,7 @@ document.addEventListener("click",async ev=>{
     const ok=await w(()=>db.collection("movements").add(body),cv!==""?"已登記盤點與進貨":"已登記");
     const b2=$("#mv_add_btn");if(b2){b2.disabled=false;b2.textContent="登記";}
     if(ok){pendingPhoto=null;if($("#mv_cnt"))$("#mv_cnt").value="";["mv_qty","mv_note","mv_cost","mv_exp","mv_cnt"].forEach(k=>delete dirty[k]);if($("#mv_qty"))$("#mv_qty").value="";if($("#mv_note"))$("#mv_note").value="";if($("#mv_cost"))$("#mv_cost").value="";if($("#mv_photo"))$("#mv_photo").value="";if($("#mv_photo_name"))$("#mv_photo_name").textContent="";}return;}
+  if(act==="cat-sel"){catSel=id||"all";applyCat();return;}
   if(act==="pp-save"){const date=($("#pp_date")&&$("#pp_date").value)||today();
     const docs=[...document.querySelectorAll(".ppq")].filter(x=>n(x.value)>0).map(x=>({id:genId(),doc:{type:"prep",date,ingId:x.dataset.ing,qty:n(x.value),note:"每日備貨",...meta()}}));
     if(!docs.length)return toast("請先填要備貨的數量");
