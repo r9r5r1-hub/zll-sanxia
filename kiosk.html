@@ -91,6 +91,18 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
 .loading{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:50;font-size:20px;text-align:center;padding:20px}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:12px 20px;border-radius:12px;font-size:17px;z-index:60;max-width:90vw;text-align:center}
 @media (max-aspect-ratio:1/1){#home{flex-direction:column;overflow:auto}#home .right{overflow:visible}.big{min-height:220px}}
+.modesel{display:flex;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.modesel button{padding:10px 22px;font-size:18px;border-radius:0;background:transparent}
+.modesel button.on{background:var(--fg);color:var(--bg);font-weight:700}
+.cam .shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.cam.frozen .shot{display:block}
+.cam.ok{border-color:var(--good)!important}
+.count{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:140px;font-weight:500;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6);pointer-events:none}
+.sform{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sform label{font-size:14px}
+.sform input{padding:10px 12px}
+.srow .no{font-family:var(--mono);color:var(--muted);margin-right:8px}
+.err{color:var(--bad);font-size:15px;min-height:1.2em}
 </style>
 </head>
 <body>
@@ -98,7 +110,7 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
 
 <section class="screen" id="setup"><div class="box">
   <h1>綁定打卡機</h1>
-  <p class="muted" style="margin:0">這台平板第一次使用，請老闆輸入老闆密碼綁定。綁定後員工就能在這台用人臉打卡，不需要每個人登入。</p>
+  <p class="muted" style="margin:0">這台平板第一次使用，請老闆輸入老闆密碼綁定。綁定後員工輸入自己的密碼或員工編號、自拍一張就能打卡。</p>
   <label>老闆密碼<input id="su_pin" type="password" inputmode="numeric" autocomplete="off"></label>
   <label>這台的名稱<input id="su_name" value="店內打卡機" maxlength="20"></label>
   <button class="btn primary" id="su_go">綁定</button>
@@ -111,10 +123,10 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
     <div class="clock" id="h_clock">--:--</div>
     <div id="h_banner"></div>
     <div class="big">
-      <button class="b-in" data-go="in">上班打卡<small>看鏡頭，自動辨識</small></button>
-      <button class="b-out" data-go="out">下班打卡<small>看鏡頭，自動辨識</small></button>
+      <button class="b-in" data-go="in">上班打卡<small>輸入密碼或編號，再自拍一張</small></button>
+      <button class="b-out" data-go="out">下班打卡<small>輸入密碼或編號，再自拍一張</small></button>
     </div>
-    <div class="links"><button id="h_pin">認不出來？用密碼打卡</button><button id="h_admin">管理</button></div>
+    <div class="links"><button id="h_admin">管理</button></div>
   </div>
   <div class="right">
     <div class="card"><h3>今日班表</h3><div class="list" id="h_shifts"></div></div>
@@ -122,11 +134,21 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
   </div>
 </section>
 
+<section class="screen" id="pin">
+  <div class="kindsel"><button class="k-in" data-kind="in">上班打卡</button><button class="k-out" data-kind="out">下班打卡</button></div>
+  <div class="modesel"><button data-mode="no">員工編號</button><button data-mode="pin">員工密碼</button></div>
+  <div class="prompt" id="pn_prompt">輸入你的員工編號</div>
+  <div class="dots" id="pn_dots"></div>
+  <div class="err" id="pn_err"></div>
+  <div class="pad" id="pn_pad"></div>
+  <div class="links"><button id="pn_cancel">取消</button><button id="pn_ok" style="background:var(--in);border-color:var(--in);color:#fff;padding:12px 30px;font-size:18px;font-weight:700">下一步：自拍</button></div>
+</section>
+
 <section class="screen" id="scan">
   <div class="prompt" id="sc_prompt">請看鏡頭</div>
-  <div class="cam" id="sc_cam"><video id="video" playsinline muted autoplay></video><div class="guide"></div></div>
+  <div class="cam" id="sc_cam"><video id="video" playsinline muted autoplay></video><img class="shot" id="sc_shot" alt=""><div class="guide"></div><div class="count" id="sc_count"></div></div>
   <div class="sub" id="sc_sub"></div>
-  <button class="cbtn" id="sc_cancel">取消</button>
+  <div class="links"><button class="cbtn" id="sc_cancel">取消</button><button class="cbtn" id="sc_snap" hidden>拍照</button></div>
 </section>
 
 <section class="screen" id="result">
@@ -135,15 +157,7 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
   <div class="kd" id="rs_kind"></div>
   <div class="tm" id="rs_time"></div>
   <div class="note" id="rs_note"></div>
-  <button class="cbtn" id="rs_wrong" style="margin-top:12px">不是我</button>
-</section>
-
-<section class="screen" id="pin">
-  <div class="prompt">輸入你的員工密碼</div>
-  <div class="kindsel"><button class="k-in" data-kind="in">上班</button><button class="k-out" data-kind="out">下班</button></div>
-  <div class="dots" id="pn_dots"></div>
-  <div class="pad" id="pn_pad"></div>
-  <div class="links"><button id="pn_cancel">取消</button><button id="pn_ok" style="background:var(--in);border-color:var(--in);color:#fff">打卡</button></div>
+  <button class="cbtn" id="rs_undo" style="margin-top:12px">打錯了，取消這筆</button>
 </section>
 
 <section class="screen" id="admin"><div class="box">
@@ -153,9 +167,18 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
     <div class="links" style="margin-top:12px"><button class="btn" id="ad_back">返回</button><button class="btn primary" id="ad_go">進入</button></div>
   </div>
   <div id="ad_main" hidden>
-    <p class="muted" style="margin:0">幫每位員工登錄人臉：請員工站在鏡頭前、臉在框內、光線充足，約 3 秒完成。戴眼鏡、不戴眼鏡可以各「加拍一組」，辨識更穩。</p>
+    <div class="card"><h3 id="sf_title">新增員工</h3>
+      <div class="sform">
+        <label>姓名<input id="sf_name" maxlength="20" placeholder="例如：王小明"></label>
+        <label>員工編號（空白自動編號）<input id="sf_no" inputmode="numeric" maxlength="6" placeholder="自動"></label>
+        <label>打卡密碼（4～8 碼）<input id="sf_pin" inputmode="numeric" maxlength="8" autocomplete="off"></label>
+        <label>時薪（可之後再填）<input id="sf_wage" type="number" min="0" step="1" inputmode="numeric" placeholder="2026 基本工資 196"></label>
+      </div>
+      <div class="err" id="sf_err"></div>
+      <div class="links"><button class="btn primary" id="sf_save">新增員工</button><button class="btn" id="sf_cancel" hidden>取消編輯</button></div>
+    </div>
     <div id="ad_staff"></div>
-    <div class="links"><button class="btn" id="ad_reload">重新載入員工</button><button class="btn danger" id="ad_unbind">解除這台綁定</button><button class="btn primary" id="ad_exit">完成</button></div>
+    <div class="links"><button class="btn" id="ad_reload">重新載入</button><button class="btn danger" id="ad_unbind">解除這台綁定</button><button class="btn primary" id="ad_exit">完成</button></div>
   </div>
 </div></section>
 
@@ -164,17 +187,16 @@ input{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid 
 <script>
 (()=>{"use strict";
 const MODEL_URL="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/";
-const MATCH=0.5;          // 臉部特徵距離門檻（越小越嚴格）
-const SCAN_SECONDS=15;
+const SCAN_SECONDS=30;
 const API_URL=(()=>{const u=String((window.HOTPOT_CONFIG&&window.HOTPOT_CONFIG.apiUrl)||"").trim();return /^https:\/\/script\.google\.com\//.test(u)?u:"";})();
-const LS={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const LS={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let token=LS.get("kiosk_token")||"",K=null,modelsReady=false,stream=null,camTimer=null,ownerPin="";
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let token=LS.get("kiosk_token")||"",K=null,detReady=false,detFailed=false,stream=null,camTimer=null,ownerPin="",cur="";
 try{K=JSON.parse(LS.get("kiosk_data")||"null");}catch(e){}
 
 function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id));cur=id;}
-let cur="";
 function toast(m,ms){document.querySelectorAll(".toast").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),ms||2600);}
 function ymd(d){d=d||new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function hm(d){d=d||new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
@@ -196,7 +218,6 @@ async function load(quiet){
   catch(e){if(e.code==="bad_kiosk"){unbindLocal();toast(e.message,5000);return false;}if(!quiet)toast(e.code==="network"?"目前離線，使用上次的資料":e.message);renderHome();return false;}
 }
 function unbindLocal(){token="";LS.del("kiosk_token");LS.del("kiosk_data");K=null;show("setup");}
-function faces(){return (K&&K.staff||[]).filter(s=>Array.isArray(s.face)&&s.face.length);}
 
 /* ---------- 待機畫面 ---------- */
 const WD="日一二三四五六";
@@ -208,18 +229,15 @@ function renderHome(){
   const t=ymd();const ps=(K.punches||[]).filter(p=>p.date===t).sort((a,b)=>a.ts<b.ts?1:-1);
   $("#h_shifts").innerHTML=(K.shifts||[]).length?K.shifts.map(s=>`<div class="r"><span><b>${esc(s.name)}</b> <span class="mono muted">${esc(s.start)}–${esc(s.end)}</span></span><span>${s.staff.map(id=>{const done=ps.some(p=>p.staffId===id&&p.kind==="in");return `<span class="${done?"":"muted"}">${esc(nameOf(id))}${done?" ✓":""}</span>`;}).join("、")}</span></div>`).join(""):`<div class="muted small">今天沒有已發布的班表</div>`;
   $("#h_punches").innerHTML=ps.length?ps.slice(0,14).map(p=>`<div class="r"><span>${esc(p.name)}</span><span><span class="pill ${p.kind==="in"?"p-in":"p-out"}">${p.kind==="in"?"上班":"下班"}</span> <span class="mono">${esc(p.time)}</span></span></div>`).join(""):`<div class="muted small">還沒有人打卡</div>`;
-  const q=queue().length,nf=(K.staff||[]).filter(s=>!(s.face&&s.face.length)).length;
-  $("#h_banner").innerHTML=(q?`<div class="banner">有 ${q} 筆打卡等網路恢復後上傳</div>`:"")+(!modelsReady?`<div class="banner">人臉辨識載入中…可先用密碼打卡</div>`:nf?`<div class="banner" style="background:var(--surface-2);color:var(--muted)">${nf} 位員工還沒登錄人臉（老闆按「管理」登錄）</div>`:"");
+  const q=queue().length;
+  $("#h_banner").innerHTML=(q?`<div class="banner">有 ${q} 筆打卡等網路恢復後上傳</div>`:"")+((K.staff||[]).length?"":`<div class="banner">還沒有員工，請按「管理」新增</div>`);
 }
 
-/* ---------- 相機與人臉 ---------- */
+/* ---------- 相機與臉部偵測（只確認有拍到臉，不辨識是誰） ---------- */
 async function loadModels(){
-  try{
-    try{await faceapi.tf.setBackend("webgl");}catch(e){}
-    await faceapi.tf.ready();
-    await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]);
-    modelsReady=true;renderHome();
-  }catch(e){console.error(e);toast("人臉辨識模型載入失敗，請檢查網路；暫時可用密碼打卡",5000);setTimeout(loadModels,30000);}
+  if(typeof faceapi==="undefined"){detFailed=true;return;}
+  try{try{await faceapi.tf.setBackend("webgl");}catch(e){}await faceapi.tf.ready();await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);detReady=true;}
+  catch(e){console.error(e);detFailed=true;}
 }
 async function camOn(){
   clearTimeout(camTimer);
@@ -227,57 +245,97 @@ async function camOn(){
   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false});}
   catch(e){toast("無法開啟相機：請允許這個網頁使用相機",5000);return false;}
   const v=$("#video");v.srcObject=stream;try{await v.play();}catch(e){}
+  for(let i=0;i<30&&!v.videoWidth;i++)await sleep(100);
   return true;
 }
 function camLater(){clearTimeout(camTimer);camTimer=setTimeout(()=>{if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}},120000);}
-const detOpt=()=>new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5});
-async function detect(){
-  const v=$("#video");if(!v.videoWidth)return null;
-  const r=await faceapi.detectSingleFace(v,detOpt()).withFaceLandmarks().withFaceDescriptor();
-  if(!r)return null;const w=r.detection.box.width/v.videoWidth;
-  return {desc:r.descriptor,size:w,score:r.detection.score};
+async function detectFace(){
+  const v=$("#video");if(!v.videoWidth||!detReady)return null;
+  const r=await faceapi.detectSingleFace(v,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}));
+  if(!r)return null;return {score:r.score,size:r.box.width/v.videoWidth};
 }
-function bestMatch(desc){
-  let best=null;
-  for(const s of faces())for(const f of s.face){const d=faceapi.euclideanDistance(desc,f);if(!best||d<best.dist)best={staff:s,dist:d};}
-  return best;
-}
-function snapshot(){const v=$("#video");if(!v.videoWidth)return "";const c=document.createElement("canvas");const w=320,h=Math.round(320*v.videoHeight/v.videoWidth);c.width=w;c.height=h;const x=c.getContext("2d");x.translate(w,0);x.scale(-1,1);x.drawImage(v,0,0,w,h);return c.toDataURL("image/jpeg",0.6);}
+function snapshot(){const v=$("#video");if(!v.videoWidth)return "";const c=document.createElement("canvas");const w=480,h=Math.round(480*v.videoHeight/v.videoWidth);c.width=w;c.height=h;const x=c.getContext("2d");x.translate(w,0);x.scale(-1,1);x.drawImage(v,0,0,w,h);return c.toDataURL("image/jpeg",0.7);}
 
-let scanRun=0;
-async function startScan(kind){
-  if(!modelsReady){toast("人臉辨識還在載入，請稍等或用密碼打卡");return;}
-  if(!faces().length){toast("還沒有員工登錄人臉，請老闆先到「管理」登錄");return;}
-  show("scan");$("#sc_cam").className="cam "+kind;$("#sc_prompt").textContent=kind==="in"?"上班打卡・請看鏡頭":"下班打卡・請看鏡頭";$("#sc_sub").textContent="開啟相機中…";
-  if(!await camOn()){show("home");return;}
-  const run=++scanRun;const end=Date.now()+SCAN_SECONDS*1000;let prev=null,hits=0;
-  while(run===scanRun&&Date.now()<end){
-    const left=Math.ceil((end-Date.now())/1000);
-    let r=null;try{r=await detect();}catch(e){console.error(e);}
-    if(run!==scanRun)return;
-    if(!r){$("#sc_sub").textContent=`把臉放進框內（${left} 秒）`;hits=0;prev=null;await sleep(120);continue;}
-    if(r.size<0.18){$("#sc_sub").textContent="請再靠近一點";hits=0;await sleep(120);continue;}
-    const m=bestMatch(r.desc);
-    if(m&&m.dist<MATCH){
-      if(prev&&prev.staff.id===m.staff.id)hits++;else hits=1;prev=m;
-      $("#sc_sub").textContent=`辨識中… ${m.staff.name}`;
-      if(hits>=2||m.dist<0.38){await punch({kind,staffId:m.staff.id,method:"face",dist:m.dist,name:m.staff.name});return;}
-    }else{hits=0;prev=null;$("#sc_sub").textContent=`認不出來，請正對鏡頭、拿下口罩（${left} 秒）`;}
-    await sleep(80);
+/* ---------- 第一步：輸入密碼或員工編號 ---------- */
+let pinVal="",pinKind="in",pinMode=LS.get("kiosk_mode")==="pin"?"pin":"no",who=null;
+function pinScreen(kind){pinVal="";pinKind=kind;$("#pn_err").textContent="";drawPin();show("pin");}
+function drawPin(){
+  $("#pn_dots").textContent=pinVal?(pinMode==="pin"?pinVal.replace(/./g,"●"):pinVal):" ";
+  $("#pn_prompt").textContent=pinMode==="pin"?"輸入你的員工密碼":"輸入你的員工編號";
+  document.querySelectorAll("#pin [data-kind]").forEach(b=>b.classList.toggle("on",b.dataset.kind===pinKind));
+  document.querySelectorAll("#pin [data-mode]").forEach(b=>b.classList.toggle("on",b.dataset.mode===pinMode));
+}
+$("#pn_pad").innerHTML=["1","2","3","4","5","6","7","8","9","清除","0","⌫"].map(k=>`<button data-k="${k}"${k.length>1?' style="font-size:20px;font-family:var(--body)"':""}>${k}</button>`).join("");
+async function pinNext(){
+  const v=pinVal;if(!v)return;if(pinMode==="pin"&&v.length<4){$("#pn_err").textContent="密碼至少 4 碼";return;}
+  const b=$("#pn_ok");b.disabled=true;$("#pn_err").textContent="確認中…";
+  const cred=pinMode==="pin"?{method:"pin",staffPin:v}:{method:"no",staffNo:v};
+  try{const j=await api("check",cred);who={...cred,staffId:j.staffId,name:j.name,kind:pinKind};}
+  catch(e){
+    if(e.code==="network"){ // 離線：員工編號可用平板上的名單；密碼就先暫存，連線後再確認
+      const s=pinMode==="no"?(K&&K.staff||[]).find(x=>String(x.no)===v):null;
+      if(pinMode==="no"&&!s){$("#pn_err").textContent="查無這個員工編號";b.disabled=false;return;}
+      who={...cred,staffId:s?s.id:"",name:s?s.name:"",kind:pinKind,offline:true};
+    }else{$("#pn_err").textContent=e.message;pinVal="";drawPin();b.disabled=false;return;}
   }
-  if(run===scanRun){show("home");camLater();toast("認不出來。請靠近一點、光線亮一點再試，或用密碼打卡",4000);}
+  b.disabled=false;pinVal="";$("#pn_err").textContent="";startSelfie();
 }
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-/* ---------- 打卡 ---------- */
-function queue(){try{return JSON.parse(LS.get("kiosk_queue")||"[]");}catch(e){return [];}}
-function setQueue(q){LS.set("kiosk_queue",JSON.stringify(q));}
-let lastShown=null;
-async function punch(p){
-  const at=new Date();const photo=p.method==="face"?snapshot():"";
+/* ---------- 第二步：自拍 ---------- */
+let scanRun=0,shot=null;
+async function startSelfie(){
+  show("scan");const cam=$("#sc_cam");cam.className="cam "+who.kind;$("#sc_count").textContent="";
+  $("#sc_prompt").textContent=(who.name?who.name+"，":"")+"請看鏡頭自拍";$("#sc_sub").textContent="開啟相機中…";$("#sc_snap").hidden=true;
+  if(!await camOn()){show("home");return;}
+  const run=++scanRun;const end=Date.now()+SCAN_SECONDS*1000;
+  if(!detReady){ // 臉部偵測元件沒載入：改成手動拍照
+    $("#sc_sub").textContent=detFailed?"臉部偵測無法使用，請把臉放進框內後按「拍照」":"臉部偵測載入中，也可以把臉放進框內後按「拍照」";
+    $("#sc_snap").hidden=false;
+    while(run===scanRun&&!detReady&&Date.now()<end)await sleep(300);
+    if(run!==scanRun||!detReady){if(run===scanRun&&Date.now()>=end){show("home");camLater();toast("逾時，請重新打卡");}return;}
+    $("#sc_snap").hidden=true;
+  }
+  let hits=0,best=0;
+  while(run===scanRun&&Date.now()<end){
+    let r=null;try{r=await detectFace();}catch(e){console.error(e);}
+    if(run!==scanRun)return;
+    const left=Math.ceil((end-Date.now())/1000);
+    if(!r){hits=0;cam.classList.remove("ok");$("#sc_sub").textContent=`沒有偵測到臉，請把臉放進框內（${left} 秒）`;await sleep(120);continue;}
+    if(r.size<0.16){hits=0;cam.classList.remove("ok");$("#sc_sub").textContent="請再靠近一點";await sleep(120);continue;}
+    hits++;best=Math.max(best,r.score);cam.classList.add("ok");$("#sc_sub").textContent="偵測到臉部，保持不動…";
+    if(hits>=3){
+      // 倒數 3 秒，期間臉要一直在畫面中
+      let okAll=true;
+      for(let n=3;n>=1&&run===scanRun;n--){$("#sc_count").textContent=n;await sleep(650);let rr=null;try{rr=await detectFace();}catch(e){}if(!rr||rr.size<0.14){okAll=false;break;}best=Math.max(best,rr.score);}
+      $("#sc_count").textContent="";
+      if(run!==scanRun)return;
+      if(!okAll){hits=0;cam.classList.remove("ok");$("#sc_sub").textContent="臉離開畫面了，請重新對準";continue;}
+      const photo=snapshot();let rr=null;try{rr=await detectFace();}catch(e){}
+      return capture(photo,Math.round(best*100)/100,false);
+    }
+    await sleep(100);
+  }
+  if(run===scanRun){show("home");camLater();toast("沒有拍到臉，打卡未完成，請重新打卡",4500);}
+}
+function capture(photo,score,noCheck){
+  scanRun++;const cam=$("#sc_cam");$("#sc_shot").src=photo;cam.classList.add("frozen");$("#sc_snap").hidden=true;$("#sc_sub").textContent="上傳照片中…";
   camLater();
-  const body={kind:p.kind,method:p.method,clientTs:at.toISOString()};
-  if(p.method==="pin")body.staffPin=p.staffPin;else{body.staffId=p.staffId;body.dist=Math.round(p.dist*1000)/1000;body.photoData=photo;}
+  setTimeout(()=>cam.classList.remove("frozen"),4000);
+  punch(photo,score,noCheck);
+}
+
+/* ---------- 第三步：上傳並完成打卡 ---------- */
+function queue(){try{return JSON.parse(LS.get("kiosk_queue")||"[]");}catch(e){return [];}}
+function setQueue(q){while(q.length&&!LS.set("kiosk_queue",JSON.stringify(q)))q.shift();if(!q.length)LS.del("kiosk_queue");}
+let lastShown=null;
+async function punch(photo,score,noCheck){
+  const at=new Date();const p=who;
+  const body={kind:p.kind,method:p.method,clientTs:at.toISOString(),photoData:photo,faceScore:score};
+  if(noCheck)body.noFaceCheck=true;
+  if(p.method==="pin")body.staffPin=p.staffPin;else body.staffNo=p.staffNo;
+  const offlineSave=()=>{const q=queue();q.push(body);setQueue(q.slice(-60));
+    result({name:p.name||"已暫存",kind:p.kind,time:hm(at),note:"網路斷線，打卡和照片已先存在這台平板，恢復連線後會自動上傳"+(p.method==="pin"?"並確認密碼":""),ok:true});};
+  if(p.offline)return offlineSave();
   try{
     const j=await api("punch",body);
     if(K){K.punches=(K.punches||[]).filter(x=>x.id!==j.punch.id).concat([{id:j.punch.id,staffId:j.punch.staffId,name:j.name,kind:j.kind,date:j.punch.date,time:j.punch.time,ts:j.punch.ts}]);LS.set("kiosk_data",JSON.stringify(K));}
@@ -287,100 +345,90 @@ async function punch(p){
     else if(j.punch.early)note=`<span style="color:var(--warn)">比${esc(j.punch.shift||"")}早 ${j.punch.early} 分鐘下班</span>`;
     else if(j.punch.shift)note=`${esc(j.punch.shift)}・${j.kind==="in"?"準時":"辛苦了"}`;
     if(!j.dup&&j.last&&j.last.kind===j.kind)note+=(note?"<br>":"")+`<span style="color:var(--warn)">提醒：上一筆也是${j.kind==="in"?"上班":"下班"}（${esc(j.last.date.slice(5))} ${esc(j.last.time)}），是不是忘了${j.kind==="in"?"下班":"上班"}打卡？請告訴老闆補登。</span>`;
-    result({name:j.name,kind:j.kind,time:j.punch.time,note,ok:true,canUndo:p.method==="face"&&!j.dup,id:j.punch.id});
+    result({name:j.name,kind:j.kind,time:j.punch.time,note,ok:true,canUndo:!j.dup,id:j.punch.id});
   }catch(e){
-    if(e.code==="network"&&p.method==="face"){
-      const q=queue();q.push(body);setQueue(q.slice(-200));
-      result({name:p.name,kind:p.kind,time:hm(at),note:"網路斷線，已先存在這台平板，恢復連線後會自動上傳",ok:true});
-    }else{
-      result({name:p.method==="pin"?"":p.name||"",kind:p.kind,time:"",note:esc(e.message),ok:false});
-    }
+    if(e.code==="network")return offlineSave();
+    result({name:"打卡未完成",kind:p.kind,time:"",note:esc(e.message),ok:false});
   }
 }
 function result(r){
   lastShown=r;show("result");
   $("#rs_ic").textContent=r.ok?"✓":"!";$("#rs_ic").style.background=r.ok?(r.kind==="in"?"var(--in)":"var(--out)"):"var(--warn)";
-  $("#rs_name").textContent=r.name||(r.ok?"":"打卡失敗");
+  $("#rs_name").textContent=r.name||"";
   $("#rs_kind").textContent=r.ok?(r.kind==="in"?"上班打卡成功":"下班打卡成功"):"";
   $("#rs_time").textContent=r.time||"";$("#rs_note").innerHTML=r.note||"";
-  $("#rs_wrong").hidden=!r.canUndo;
-  clearTimeout(result.t);result.t=setTimeout(()=>{if(cur==="result"){show("home");renderHome();}},r.ok?4500:6000);
+  $("#rs_undo").hidden=!r.canUndo;
+  clearTimeout(result.t);result.t=setTimeout(()=>{if(cur==="result"){show("home");renderHome();}},r.ok?5000:6000);
 }
+let flushing=false;
 async function flush(){
-  const q=queue();if(!q.length||!token)return;const left=[];
-  for(const b of q){try{await api("punch",b);}catch(e){if(e.code==="network"){left.push(b);}}}
-  setQueue(left.concat(queue().slice(q.length)));if(q.length!==left.length)load(true);else renderHome();
+  if(flushing)return;const q=queue();if(!q.length||!token)return;flushing=true;const left=[];let bad=0;
+  try{for(const b of q){try{await api("punch",b);}catch(e){if(e.code==="network")left.push(b);else bad++;}}}finally{flushing=false;}
+  setQueue(left.concat(queue().slice(q.length)));
+  if(bad)toast(`有 ${bad} 筆離線打卡的密碼或編號不正確，沒有上傳成功，請告訴老闆補登`,6000);
+  if(q.length!==left.length)load(true);else renderHome();
 }
 
-/* ---------- 密碼打卡 ---------- */
-let pinVal="",pinKind="in";
-function pinScreen(){pinVal="";pinKind=new Date().getHours()>=14?"out":"in";drawPin();show("pin");}
-function drawPin(){$("#pn_dots").textContent=pinVal.replace(/./g,"●")||" ";document.querySelectorAll("#pin [data-kind]").forEach(b=>b.classList.toggle("on",b.dataset.kind===pinKind));}
-$("#pn_pad").innerHTML=["1","2","3","4","5","6","7","8","9","清除","0","⌫"].map(k=>`<button data-k="${k}"${k.length>1?' style="font-size:20px;font-family:var(--body)"':""}>${k}</button>`).join("");
-
-/* ---------- 管理：登錄人臉 ---------- */
+/* ---------- 管理：新增、編輯員工 ---------- */
+let adStaff=[],editId="";
+async function adLoad(){try{const j=await api("staffList",{},true);adStaff=j.staff||[];renderAdmin();}catch(e){toast(e.message);}}
 function renderAdmin(){
-  const list=(K&&K.staff)||[];
-  $("#ad_staff").innerHTML=list.length?list.map(s=>`<div class="srow"><div><b style="font-size:18px">${esc(s.name)}</b><div class="small ${s.face&&s.face.length?"":"muted"}">${s.face&&s.face.length?`已登錄 ${s.face.length} 組`:"尚未登錄人臉"}</div></div><div class="acts"><button data-enroll="${s.id}" data-mode="replace">${s.face&&s.face.length?"重新登錄":"登錄人臉"}</button>${s.face&&s.face.length&&s.face.length<3?`<button data-enroll="${s.id}" data-mode="add">加拍一組</button>`:""}</div></div>`).join(""):`<p class="muted">還沒有員工。請先在庫存 App 的「設定 → 員工帳號」新增員工。</p>`;
+  const list=adStaff.slice().sort((a,b)=>(a.active===false)-(b.active===false)||String(a.no).localeCompare(String(b.no)));
+  $("#ad_staff").innerHTML=list.length?list.map(s=>`<div class="srow"><div><span class="no">${esc(s.no||"—")}</span><b style="font-size:18px">${esc(s.name)}</b>${s.active===false?' <span class="pill p-warn">已停用</span>':""}<div class="small muted">${s.wage?"時薪 $"+esc(s.wage):"時薪未填"}</div></div><div class="acts"><button data-edit="${esc(s.id)}">編輯</button><button data-toggle="${esc(s.id)}">${s.active===false?"啟用":"停用"}</button></div></div>`).join(""):`<p class="muted">還沒有員工，用上面的表單新增第一位。</p>`;
 }
-async function enroll(staffId,mode){
-  const s=(K.staff||[]).find(x=>x.id===staffId);if(!s)return;
-  if(!modelsReady)return toast("人臉辨識還在載入，請稍等");
-  show("scan");$("#sc_cam").className="cam";$("#sc_prompt").textContent=`登錄 ${s.name} 的人臉`;$("#sc_sub").textContent="開啟相機中…";
-  if(!await camOn()){show("admin");return;}
-  const run=++scanRun;const got=[];const end=Date.now()+25000;
-  while(run===scanRun&&got.length<5&&Date.now()<end){
-    let r=null;try{r=await detect();}catch(e){}
-    if(run!==scanRun)return;
-    if(!r){$("#sc_sub").textContent="把臉放進框內";}
-    else if(r.size<0.2){$("#sc_sub").textContent="請再靠近一點";}
-    else if(r.score<0.7){$("#sc_sub").textContent="光線不夠或角度太斜，請正對鏡頭";}
-    else{got.push(r.desc);$("#sc_sub").textContent=`拍攝中 ${got.length}/5，請微微左右轉頭`;await sleep(350);}
-    await sleep(80);
-  }
-  camLater();
-  if(run!==scanRun)return;
-  if(got.length<5){show("admin");toast("沒有拍到清楚的臉，請在明亮處再試一次",4000);return;}
-  // 檢查是不是跟其他員工太像（可能拍錯人）
-  const avg=Array.from({length:128},(_,i)=>got.reduce((a,d)=>a+d[i],0)/got.length);
-  const other=faces().filter(x=>x.id!==staffId).map(x=>({x,d:Math.min(...x.face.map(f=>faceapi.euclideanDistance(avg,f)))})).sort((a,b)=>a.d-b.d)[0];
-  if(other&&other.d<0.42){show("admin");toast(`這張臉跟「${other.x.name}」太像，請確認是不是本人在鏡頭前`,5000);return;}
-  $("#sc_sub").textContent="儲存中…";
-  try{const j=await api("faceEnroll",{staffId,face:avg,mode},true);toast(`已登錄 ${s.name}（${j.count} 組）`);await load(true);renderAdmin();show("admin");}
-  catch(e){show("admin");toast("儲存失敗："+e.message,4000);}
+function sfReset(){editId="";["sf_name","sf_no","sf_pin","sf_wage"].forEach(k=>$("#"+k).value="");$("#sf_err").textContent="";$("#sf_title").textContent="新增員工";$("#sf_save").textContent="新增員工";$("#sf_cancel").hidden=true;}
+function sfEdit(id){const s=adStaff.find(x=>x.id===id);if(!s)return;editId=id;$("#sf_name").value=s.name||"";$("#sf_no").value=s.no||"";$("#sf_pin").value=s.pin||"";$("#sf_wage").value=s.wage??"";$("#sf_title").textContent="編輯員工："+s.name;$("#sf_save").textContent="儲存";$("#sf_cancel").hidden=false;$("#sf_err").textContent="";$("#sf_name").focus();}
+async function sfSave(){
+  const name=$("#sf_name").value.trim(),no=$("#sf_no").value.trim(),pv=$("#sf_pin").value.trim(),wg=$("#sf_wage").value.trim();
+  const err=m=>{$("#sf_err").textContent=m;};
+  if(!name)return err("請填姓名");if(no&&!/^\d{1,6}$/.test(no))return err("員工編號請用 1～6 位數字");if(!/^[A-Za-z0-9]{4,8}$/.test(pv))return err("打卡密碼請用 4～8 位數字或英文");
+  const old=editId?adStaff.find(x=>x.id===editId)||{}:{};
+  const doc={...old,name,pin:pv,no,wage:wg===""?(old.wage??""):Number(wg),active:old.active!==false,by:"打卡機",at:new Date().toISOString()};delete doc.id;
+  const id=editId||Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  const b=$("#sf_save");b.disabled=true;err("儲存中…");
+  try{const j=await api("put",{col:"staff",id,doc},true);const d={...(j.doc||doc),id};const ix=adStaff.findIndex(x=>x.id===id);if(ix>=0)adStaff[ix]=d;else adStaff.push(d);
+    toast(editId?"已儲存":`已新增「${name}」，員工編號 ${d.no}`,4000);sfReset();renderAdmin();load(true);}
+  catch(e){err(e.message);}finally{b.disabled=false;}
 }
+async function sfToggle(id){const s=adStaff.find(x=>x.id===id);if(!s)return;const doc={...s,active:s.active===false};delete doc.id;
+  try{const j=await api("put",{col:"staff",id,doc},true);Object.assign(s,j.doc||doc);renderAdmin();load(true);toast(s.active===false?"已停用，無法再打卡":"已啟用");}catch(e){toast(e.message);}}
 
 /* ---------- 事件 ---------- */
 document.addEventListener("click",async ev=>{
   const b=ev.target.closest("button");if(!b)return;
-  if(b.dataset.go)return startScan(b.dataset.go);
-  if(b.id==="sc_cancel"){scanRun++;camLater();show(ownerPin&&cur==="scan"&&!$("#ad_main").hidden?"admin":"home");return;}
-  if(b.id==="h_pin")return pinScreen();
-  if(b.id==="h_admin"){ownerPin="";$("#ad_pin").value="";$("#ad_login").hidden=false;$("#ad_main").hidden=true;show("admin");setTimeout(()=>$("#ad_pin").focus(),50);return;}
+  if(b.dataset.go)return pinScreen(b.dataset.go);
   if(b.dataset.kind){pinKind=b.dataset.kind;drawPin();return;}
-  if(b.dataset.k){const k=b.dataset.k;if(k==="清除")pinVal="";else if(k==="⌫")pinVal=pinVal.slice(0,-1);else if(pinVal.length<8)pinVal+=k;drawPin();return;}
+  if(b.dataset.mode){pinMode=b.dataset.mode;LS.set("kiosk_mode",pinMode);pinVal="";$("#pn_err").textContent="";drawPin();return;}
+  if(b.dataset.k){const k=b.dataset.k;if(k==="清除")pinVal="";else if(k==="⌫")pinVal=pinVal.slice(0,-1);else if(pinVal.length<8)pinVal+=k;$("#pn_err").textContent="";drawPin();return;}
   if(b.id==="pn_cancel"){pinVal="";show("home");return;}
-  if(b.id==="pn_ok"){if(pinVal.length<4)return toast("請輸入員工密碼");const v=pinVal;pinVal="";drawPin();b.disabled=true;await punch({kind:pinKind,method:"pin",staffPin:v});b.disabled=false;return;}
-  if(b.id==="rs_wrong"){clearTimeout(result.t);const r=lastShown;b.disabled=true;
-    try{await api("undo",{id:r.id});if(K){K.punches=(K.punches||[]).filter(x=>x.id!==r.id);LS.set("kiosk_data",JSON.stringify(K));}pinVal="";pinKind=r.kind;drawPin();show("pin");toast("已取消剛剛那筆，請用自己的密碼打卡",4000);}
+  if(b.id==="pn_ok")return pinNext();
+  if(b.id==="sc_cancel"){scanRun++;camLater();$("#sc_count").textContent="";show("home");toast("已取消，打卡未完成");return;}
+  if(b.id==="sc_snap"){const photo=snapshot();if(!photo)return toast("相機還沒準備好");return capture(photo,null,true);}
+  if(b.id==="rs_undo"){clearTimeout(result.t);const r=lastShown;b.disabled=true;
+    try{await api("undo",{id:r.id});if(K){K.punches=(K.punches||[]).filter(x=>x.id!==r.id);LS.set("kiosk_data",JSON.stringify(K));}show("home");renderHome();toast("已取消這筆打卡",3500);}
     catch(e){show("home");renderHome();toast(e.message,5000);}finally{b.disabled=false;}return;}
+  if(b.id==="h_admin"){ownerPin="";$("#ad_pin").value="";$("#ad_login").hidden=false;$("#ad_main").hidden=true;show("admin");setTimeout(()=>$("#ad_pin").focus(),50);return;}
   if(b.id==="su_go"){const p=$("#su_pin").value.trim();if(!p)return;b.disabled=true;$("#su_msg").textContent="綁定中…";ownerPin=p;
     try{const j=await api("kioskInit",{name:$("#su_name").value.trim()||"店內打卡機"},true);token=j.token;LS.set("kiosk_token",token);ownerPin="";$("#su_pin").value="";await load();show("home");toast("綁定完成");}
     catch(e){ownerPin="";$("#su_msg").textContent=e.code==="bad_pin"||e.code==="permission_denied"?"需要老闆密碼":e.message;}finally{b.disabled=false;}return;}
   if(b.id==="ad_back"){show("home");return;}
   if(b.id==="ad_go"){const p=$("#ad_pin").value.trim();if(!p)return;b.disabled=true;ownerPin=p;
-    try{const j=await api("login",{},true);if(j.role!=="owner")throw new Error("需要老闆密碼");$("#ad_pin").value="";await load(true);renderAdmin();$("#ad_login").hidden=true;$("#ad_main").hidden=false;}
+    try{const j=await api("login",{},true);if(j.role!=="owner")throw new Error("需要老闆密碼");$("#ad_pin").value="";sfReset();$("#ad_login").hidden=true;$("#ad_main").hidden=false;await adLoad();}
     catch(e){ownerPin="";toast(e.code==="bad_pin"?"密碼錯誤":e.message);}finally{b.disabled=false;}return;}
-  if(b.dataset.enroll)return enroll(b.dataset.enroll,b.dataset.mode);
-  if(b.id==="ad_reload"){await load();renderAdmin();toast("已重新載入");return;}
+  if(b.id==="sf_save")return sfSave();
+  if(b.id==="sf_cancel")return sfReset();
+  if(b.dataset.edit)return sfEdit(b.dataset.edit);
+  if(b.dataset.toggle)return sfToggle(b.dataset.toggle);
+  if(b.id==="ad_reload"){await adLoad();await load(true);toast("已重新載入");return;}
   if(b.id==="ad_unbind"){if(b.dataset.armed){unbindLocal();ownerPin="";toast("已解除這台的綁定");return;}b.dataset.armed=1;b.textContent="再按一次確認解除";setTimeout(()=>{delete b.dataset.armed;b.textContent="解除這台綁定";},3000);return;}
-  if(b.id==="ad_exit"){ownerPin="";show("home");renderHome();return;}
+  if(b.id==="ad_exit"){ownerPin="";adStaff=[];sfReset();show("home");renderHome();return;}
 });
-document.addEventListener("keydown",ev=>{if(cur==="pin"){if(/^[0-9]$/.test(ev.key)&&pinVal.length<8){pinVal+=ev.key;drawPin();}else if(ev.key==="Backspace"){pinVal=pinVal.slice(0,-1);drawPin();}else if(ev.key==="Enter")$("#pn_ok").click();}
+document.addEventListener("keydown",ev=>{
+  if(cur==="pin"){if(/^[0-9]$/.test(ev.key)&&pinVal.length<8){pinVal+=ev.key;drawPin();}else if(ev.key==="Backspace"){pinVal=pinVal.slice(0,-1);drawPin();}else if(ev.key==="Enter")pinNext();}
   else if(ev.key==="Enter"&&cur==="admin"&&!$("#ad_login").hidden)$("#ad_go").click();
   else if(ev.key==="Enter"&&cur==="setup")$("#su_go").click();});
-// 管理畫面閒置 3 分鐘自動登出
-let idleT=0;["click","keydown","touchstart"].forEach(t=>document.addEventListener(t,()=>{clearTimeout(idleT);idleT=setTimeout(()=>{if(cur==="admin"||cur==="pin"){ownerPin="";pinVal="";show("home");renderHome();}},180000);},{passive:true}));
+// 閒置 3 分鐘：離開管理與輸入畫面
+let idleT=0;["click","keydown","touchstart"].forEach(t=>document.addEventListener(t,()=>{clearTimeout(idleT);idleT=setTimeout(()=>{if(cur==="admin"||cur==="pin"){ownerPin="";adStaff=[];pinVal="";show("home");renderHome();}},180000);},{passive:true}));
 
 /* 螢幕常亮 */
 let wake=null;async function keepAwake(){try{if("wakeLock" in navigator&&document.visibilityState==="visible")wake=await navigator.wakeLock.request("screen");}catch(e){}}
@@ -393,7 +441,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceW
   $("#loading").remove();
   setInterval(tick,1000);tick();
   if(!API_URL){show("setup");$("#su_msg").textContent="還沒設定後端網址（config.js）";return;}
-  if(typeof faceapi==="undefined"){toast("人臉辨識元件載入失敗，請檢查網路後重新整理；暫時可用密碼打卡",6000);}else loadModels();
+  loadModels();
   if(!token){show("setup");return;}
   show("home");renderHome();keepAwake();
   await load(true);flush();
